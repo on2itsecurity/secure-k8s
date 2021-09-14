@@ -1,0 +1,324 @@
+---
+# Source: cluster-autoscaler/templates/pdb.yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  labels:
+    app.kubernetes.io/instance: "autoscaler"
+    app.kubernetes.io/name: "gce-cluster-autoscaler"
+    app.kubernetes.io/managed-by: "Helm"
+    helm.sh/chart: "cluster-autoscaler-9.10.5"
+  name: autoscaler-gce-cluster-autoscaler
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: "autoscaler"
+      app.kubernetes.io/name: "gce-cluster-autoscaler"
+
+  maxUnavailable: 1
+---
+# Source: cluster-autoscaler/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app.kubernetes.io/instance: "autoscaler"
+    app.kubernetes.io/name: "gce-cluster-autoscaler"
+    app.kubernetes.io/managed-by: "Helm"
+    helm.sh/chart: "cluster-autoscaler-9.10.5"
+  name: autoscaler-gce-cluster-autoscaler
+  namespace: kube-system
+automountServiceAccountToken: true
+---
+# Source: cluster-autoscaler/templates/clusterrole.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/instance: "autoscaler"
+    app.kubernetes.io/name: "gce-cluster-autoscaler"
+    app.kubernetes.io/managed-by: "Helm"
+    helm.sh/chart: "cluster-autoscaler-9.10.5"
+  name: autoscaler-gce-cluster-autoscaler
+  namespace: kube-system
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - events
+      - endpoints
+    verbs:
+      - create
+      - patch
+  - apiGroups:
+    - ""
+    resources:
+    - pods/eviction
+    verbs:
+    - create
+  - apiGroups:
+      - ""
+    resources:
+      - pods/status
+    verbs:
+      - update
+  - apiGroups:
+      - ""
+    resources:
+      - endpoints
+    resourceNames:
+      - cluster-autoscaler
+    verbs:
+      - get
+      - update
+  - apiGroups:
+      - ""
+    resources:
+      - nodes
+    verbs:
+    - watch
+    - list
+    - get
+    - update
+  - apiGroups:
+    - ""
+    resources:
+      - namespaces
+      - pods
+      - services
+      - replicationcontrollers
+      - persistentvolumeclaims
+      - persistentvolumes
+    verbs:
+      - watch
+      - list
+      - get
+  - apiGroups:
+    - batch
+    resources:
+      - jobs
+      - cronjobs
+    verbs:
+      - watch
+      - list
+      - get
+  - apiGroups:
+    - batch
+    - extensions
+    resources:
+    - jobs
+    verbs:
+    - get
+    - list
+    - patch
+    - watch
+  - apiGroups:
+      - extensions
+    resources:
+      - replicasets
+      - daemonsets
+    verbs:
+      - watch
+      - list
+      - get
+  - apiGroups:
+      - policy
+    resources:
+      - poddisruptionbudgets
+    verbs:
+      - watch
+      - list
+  - apiGroups:
+    - apps
+    resources:
+    - daemonsets
+    - replicasets
+    - statefulsets
+    verbs:
+    - watch
+    - list
+    - get
+  - apiGroups:
+    - storage.k8s.io
+    resources:
+    - storageclasses
+    - csinodes
+    - csidrivers
+    - csistoragecapacities
+    verbs:
+    - watch
+    - list
+    - get
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+    verbs:
+      - list
+      - watch
+  - apiGroups:
+    - coordination.k8s.io
+    resources:
+    - leases
+    verbs:
+    - create
+  - apiGroups:
+    - coordination.k8s.io
+    resourceNames:
+    - cluster-autoscaler
+    resources:
+    - leases
+    verbs:
+    - get
+    - update
+---
+# Source: cluster-autoscaler/templates/clusterrolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/instance: "autoscaler"
+    app.kubernetes.io/name: "gce-cluster-autoscaler"
+    app.kubernetes.io/managed-by: "Helm"
+    helm.sh/chart: "cluster-autoscaler-9.10.5"
+  name: autoscaler-gce-cluster-autoscaler
+  namespace: kube-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: autoscaler-gce-cluster-autoscaler
+subjects:
+  - kind: ServiceAccount
+    name: autoscaler-gce-cluster-autoscaler
+    namespace: kube-system
+---
+# Source: cluster-autoscaler/templates/role.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  labels:
+    app.kubernetes.io/instance: "autoscaler"
+    app.kubernetes.io/name: "gce-cluster-autoscaler"
+    app.kubernetes.io/managed-by: "Helm"
+    helm.sh/chart: "cluster-autoscaler-9.10.5"
+  name: autoscaler-gce-cluster-autoscaler
+  namespace: kube-system
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+    verbs:
+      - create
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+    resourceNames:
+      - cluster-autoscaler-status
+    verbs:
+      - delete
+      - get
+      - update
+---
+# Source: cluster-autoscaler/templates/rolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/instance: "autoscaler"
+    app.kubernetes.io/name: "gce-cluster-autoscaler"
+    app.kubernetes.io/managed-by: "Helm"
+    helm.sh/chart: "cluster-autoscaler-9.10.5"
+  name: autoscaler-gce-cluster-autoscaler
+  namespace: kube-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: autoscaler-gce-cluster-autoscaler
+subjects:
+  - kind: ServiceAccount
+    name: autoscaler-gce-cluster-autoscaler
+    namespace: kube-system
+---
+# Source: cluster-autoscaler/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/instance: "autoscaler"
+    app.kubernetes.io/name: "gce-cluster-autoscaler"
+    app.kubernetes.io/managed-by: "Helm"
+    helm.sh/chart: "cluster-autoscaler-9.10.5"
+  name: autoscaler-gce-cluster-autoscaler
+  namespace: kube-system
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: "autoscaler"
+      app.kubernetes.io/name: "gce-cluster-autoscaler"
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: "autoscaler"
+        app.kubernetes.io/name: "gce-cluster-autoscaler"
+    spec:
+      dnsPolicy: "ClusterFirst"
+      containers:
+        - name: gce-cluster-autoscaler
+          image: "k8s.gcr.io/autoscaling/cluster-autoscaler:v1.22.1"
+          imagePullPolicy: "IfNotPresent"
+          command:
+            - ./cluster-autoscaler
+            - --balance-similar-node-groups=true
+            - --cloud-provider=gce
+            - --cordon-node-before-terminating=true
+            - --daemonset-eviction-for-empty-nodes=true
+            - --leader-elect=true
+            - --logtostderr=true
+            - --namespace=kube-system
+            - --node-group-auto-discovery=mig:namePrefix=igm-$(CLUSTERNAME),min=1,max=84
+            - --regional
+            - --skip-nodes-with-local-storage=false
+            - --stderrthreshold=info
+          env:
+            - name: CLUSTERNAME
+              valueFrom:
+                configMapKeyRef:
+                  name: clusterconfig
+                  key: cluster.name
+          livenessProbe:
+            httpGet:
+              path: /health-check
+              port: 8085
+          ports:
+            - containerPort: 8085
+          resources:
+            limits:
+              cpu: 100m
+              memory: 300Mi
+            requests:
+              cpu: 100m
+              memory: 300Mi
+          volumeMounts:
+            - mountPath: /etc/gce.conf
+              name: gceconf
+              readOnly: true
+              subPath: gce.conf
+      serviceAccountName: autoscaler-gce-cluster-autoscaler
+      nodeSelector:
+        node-role.kubernetes.io/master: ""
+      hostNetwork: true
+      tolerations:
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/master
+      securityContext:
+        runAsGroup: 10001
+        runAsNonRoot: true
+        runAsUser: 10001
+      volumes:
+          - configMap:
+              name: cloud-controller-manager
+            name: gceconf
