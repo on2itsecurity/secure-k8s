@@ -69,7 +69,7 @@ data:
         Path              /var/log/pods/*/*/0.log
         Parser            cri
         DB                /var/run/fluentbit/k8s_container.db
-        Mem_Buf_Limit     5MB
+        Mem_Buf_Limit     15MB
         Skip_Long_Lines   On
         Refresh_Interval  10
 
