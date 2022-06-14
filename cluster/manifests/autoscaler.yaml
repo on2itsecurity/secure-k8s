@@ -7,7 +7,7 @@ metadata:
     app.kubernetes.io/instance: "autoscaler"
     app.kubernetes.io/name: "gce-cluster-autoscaler"
     app.kubernetes.io/managed-by: "Helm"
-    helm.sh/chart: "cluster-autoscaler-9.10.5"
+    helm.sh/chart: "cluster-autoscaler-9.19.1"
   name: autoscaler-gce-cluster-autoscaler
   namespace: kube-system
 spec:
@@ -15,7 +15,7 @@ spec:
     matchLabels:
       app.kubernetes.io/instance: "autoscaler"
       app.kubernetes.io/name: "gce-cluster-autoscaler"
-
+  
   maxUnavailable: 1
 ---
 # Source: cluster-autoscaler/templates/serviceaccount.yaml
@@ -26,7 +26,7 @@ metadata:
     app.kubernetes.io/instance: "autoscaler"
     app.kubernetes.io/name: "gce-cluster-autoscaler"
     app.kubernetes.io/managed-by: "Helm"
-    helm.sh/chart: "cluster-autoscaler-9.10.5"
+    helm.sh/chart: "cluster-autoscaler-9.19.1"
   name: autoscaler-gce-cluster-autoscaler
   namespace: kube-system
 automountServiceAccountToken: true
@@ -39,9 +39,8 @@ metadata:
     app.kubernetes.io/instance: "autoscaler"
     app.kubernetes.io/name: "gce-cluster-autoscaler"
     app.kubernetes.io/managed-by: "Helm"
-    helm.sh/chart: "cluster-autoscaler-9.10.5"
+    helm.sh/chart: "cluster-autoscaler-9.19.1"
   name: autoscaler-gce-cluster-autoscaler
-  namespace: kube-system
 rules:
   - apiGroups:
       - ""
@@ -181,9 +180,8 @@ metadata:
     app.kubernetes.io/instance: "autoscaler"
     app.kubernetes.io/name: "gce-cluster-autoscaler"
     app.kubernetes.io/managed-by: "Helm"
-    helm.sh/chart: "cluster-autoscaler-9.10.5"
+    helm.sh/chart: "cluster-autoscaler-9.19.1"
   name: autoscaler-gce-cluster-autoscaler
-  namespace: kube-system
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
@@ -201,7 +199,7 @@ metadata:
     app.kubernetes.io/instance: "autoscaler"
     app.kubernetes.io/name: "gce-cluster-autoscaler"
     app.kubernetes.io/managed-by: "Helm"
-    helm.sh/chart: "cluster-autoscaler-9.10.5"
+    helm.sh/chart: "cluster-autoscaler-9.19.1"
   name: autoscaler-gce-cluster-autoscaler
   namespace: kube-system
 rules:
@@ -230,7 +228,7 @@ metadata:
     app.kubernetes.io/instance: "autoscaler"
     app.kubernetes.io/name: "gce-cluster-autoscaler"
     app.kubernetes.io/managed-by: "Helm"
-    helm.sh/chart: "cluster-autoscaler-9.10.5"
+    helm.sh/chart: "cluster-autoscaler-9.19.1"
   name: autoscaler-gce-cluster-autoscaler
   namespace: kube-system
 roleRef:
@@ -242,15 +240,39 @@ subjects:
     name: autoscaler-gce-cluster-autoscaler
     namespace: kube-system
 ---
-# Source: cluster-autoscaler/templates/deployment.yaml
-apiVersion: apps/v1
-kind: Deployment
+# Source: cluster-autoscaler/templates/service.yaml
+apiVersion: v1
+kind: Service
 metadata:
   labels:
     app.kubernetes.io/instance: "autoscaler"
     app.kubernetes.io/name: "gce-cluster-autoscaler"
     app.kubernetes.io/managed-by: "Helm"
-    helm.sh/chart: "cluster-autoscaler-9.10.5"
+    helm.sh/chart: "cluster-autoscaler-9.19.1"
+  name: autoscaler-gce-cluster-autoscaler
+  namespace: kube-system
+spec:
+  ports:
+    - port: 8085
+      protocol: TCP
+      targetPort: 8085
+      name: http
+  selector:
+    app.kubernetes.io/instance: "autoscaler"
+    app.kubernetes.io/name: "gce-cluster-autoscaler"
+  type: "ClusterIP"
+---
+# Source: cluster-autoscaler/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    {}
+  labels:
+    app.kubernetes.io/instance: "autoscaler"
+    app.kubernetes.io/name: "gce-cluster-autoscaler"
+    app.kubernetes.io/managed-by: "Helm"
+    helm.sh/chart: "cluster-autoscaler-9.19.1"
   name: autoscaler-gce-cluster-autoscaler
   namespace: kube-system
 spec:
@@ -265,26 +287,30 @@ spec:
         app.kubernetes.io/instance: "autoscaler"
         app.kubernetes.io/name: "gce-cluster-autoscaler"
     spec:
+      priorityClassName: "system-cluster-critical"
       dnsPolicy: "ClusterFirst"
       containers:
         - name: gce-cluster-autoscaler
-          image: "k8s.gcr.io/autoscaling/cluster-autoscaler:v1.22.1"
+          image: "k8s.gcr.io/autoscaling/cluster-autoscaler:v1.24.0"
           imagePullPolicy: "IfNotPresent"
           command:
             - ./cluster-autoscaler
-            - --balance-similar-node-groups=true
             - --cloud-provider=gce
+            - --namespace=kube-system
+            - --node-group-auto-discovery=mig:namePrefix=igm-$(0),min=1,max=84
+            - --balance-similar-node-groups=true
             - --cordon-node-before-terminating=true
             - --daemonset-eviction-for-empty-nodes=true
             - --leader-elect=true
             - --logtostderr=true
-            - --namespace=kube-system
-            - --node-group-auto-discovery=mig:namePrefix=igm-$(CLUSTERNAME),min=1,max=84
-            - --regional
+            - --regional=true
+            - --scale-down-enabled=true
             - --skip-nodes-with-local-storage=false
+            - --skip-nodes-with-system-pods=false
             - --stderrthreshold=info
+            - --v=4
           env:
-            - name: CLUSTERNAME
+            - name: 0
               valueFrom:
                 configMapKeyRef:
                   name: clusterconfig
@@ -307,18 +333,25 @@ spec:
               name: gceconf
               readOnly: true
               subPath: gce.conf
-      serviceAccountName: autoscaler-gce-cluster-autoscaler
       nodeSelector:
         node-role.kubernetes.io/master: ""
       hostNetwork: true
+      serviceAccountName: autoscaler-gce-cluster-autoscaler
       tolerations:
         - effect: NoSchedule
           key: node-role.kubernetes.io/master
+      topologySpreadConstraints:
+        - labelSelector:
+            matchLabels:
+              app.kubernetes.io/instance: cluster-autoscaler
+          maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
       securityContext:
         runAsGroup: 10001
         runAsNonRoot: true
         runAsUser: 10001
       volumes:
-          - configMap:
-              name: cloud-controller-manager
-            name: gceconf
+        - configMap:
+            name: cloud-controller-manager
+          name: gceconf
