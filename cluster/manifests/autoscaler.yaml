@@ -297,7 +297,7 @@ spec:
             - ./cluster-autoscaler
             - --cloud-provider=gce
             - --namespace=kube-system
-            - --node-group-auto-discovery=mig:namePrefix=igm-$(0),min=1,max=84
+            - --node-group-auto-discovery=mig:namePrefix=igm-$(CLUSTERNAME),min=1,max=84
             - --balance-similar-node-groups=true
             - --cordon-node-before-terminating=true
             - --daemonset-eviction-for-empty-nodes=true
@@ -306,11 +306,10 @@ spec:
             - --regional=true
             - --scale-down-enabled=true
             - --skip-nodes-with-local-storage=false
-            - --skip-nodes-with-system-pods=false
             - --stderrthreshold=info
             - --v=4
           env:
-            - name: 0
+            - name: CLUSTERNAME
               valueFrom:
                 configMapKeyRef:
                   name: clusterconfig
