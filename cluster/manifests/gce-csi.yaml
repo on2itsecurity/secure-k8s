@@ -1,4 +1,3 @@
----
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -32,7 +31,7 @@ metadata:
 spec:
   fsGroup:
     rule: RunAsAny
-  hostNetwork: true
+  hostNetwork: false
   runAsUser:
     rule: RunAsAny
   seLinux:
@@ -56,7 +55,7 @@ spec:
   - pathPrefix: /sys
   fsGroup:
     rule: RunAsAny
-  hostNetwork: true
+  hostNetwork: false
   privileged: true
   runAsUser:
     rule: RunAsAny
@@ -341,12 +340,14 @@ rules:
   - watch
   - update
   - delete
+  - patch
 - apiGroups:
   - snapshot.storage.k8s.io
   resources:
   - volumesnapshotcontents/status
   verbs:
   - update
+  - patch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -522,12 +523,13 @@ spec:
         - --extra-create-metadata
         - --leader-election
         - --default-fstype=xfs
+        - --controller-publish-readonly=true
         env:
         - name: PDCSI_NAMESPACE
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
-        image: k8s.gcr.io/sig-storage/csi-provisioner:v2.2.1
+        image: k8s.gcr.io/sig-storage/csi-provisioner:v3.1.0
         livenessProbe:
           failureThreshold: 1
           httpGet:
@@ -556,7 +558,7 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
-        image: k8s.gcr.io/sig-storage/csi-attacher:v3.2.1
+        image: k8s.gcr.io/sig-storage/csi-attacher:v3.4.0
         livenessProbe:
           failureThreshold: 1
           httpGet:
@@ -585,7 +587,7 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
-        image: k8s.gcr.io/sig-storage/csi-resizer:v1.2.0
+        image: k8s.gcr.io/sig-storage/csi-resizer:v1.4.0
         livenessProbe:
           failureThreshold: 1
           httpGet:
@@ -614,7 +616,7 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
-        image: k8s.gcr.io/sig-storage/csi-snapshotter:v3.0.3
+        image: k8s.gcr.io/sig-storage/csi-snapshotter:v4.0.1
         name: csi-snapshotter
         volumeMounts:
         - mountPath: /csi
@@ -625,7 +627,7 @@ spec:
         env:
         - name: GOOGLE_APPLICATION_CREDENTIALS
           value: /etc/cloud-sa/cloud-sa.json
-        image: k8s.gcr.io/cloud-provider-gcp/gcp-compute-persistent-disk-csi-driver:v1.3.1
+        image: k8s.gcr.io/cloud-provider-gcp/gcp-compute-persistent-disk-csi-driver:v1.7.1
         name: gce-pd-driver
         volumeMounts:
         - mountPath: /csi
@@ -633,6 +635,7 @@ spec:
         - mountPath: /etc/cloud-sa
           name: cloud-sa-volume
           readOnly: true
+      hostNetwork: false
       nodeSelector:
         kubernetes.io/os: linux
       priorityClassName: csi-gce-pd-controller
@@ -668,7 +671,14 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: spec.nodeName
-        image: k8s.gcr.io/sig-storage/csi-node-driver-registrar:v2.3.0
+        image: k8s.gcr.io/sig-storage/csi-node-driver-registrar:v2.5.0
+        livenessProbe:
+          exec:
+            command:
+            - /csi-node-driver-registrar
+            - --kubelet-registration-path=/var/lib/kubelet/plugins/pd.csi.storage.gke.io/csi.sock
+            - --mode=kubelet-registration-probe
+          initialDelaySeconds: 3
         name: csi-driver-registrar
         volumeMounts:
         - mountPath: /csi
@@ -679,7 +689,7 @@ spec:
         - --v=5
         - --endpoint=unix:/csi/csi.sock
         - --run-controller-service=false
-        image: k8s.gcr.io/cloud-provider-gcp/gcp-compute-persistent-disk-csi-driver:v1.3.1
+        image: k8s.gcr.io/cloud-provider-gcp/gcp-compute-persistent-disk-csi-driver:v1.7.1
         name: gce-pd-driver
         securityContext:
           privileged: true
@@ -693,6 +703,7 @@ spec:
           name: device-dir
         - mountPath: /sys
           name: sys
+      hostNetwork: false
       nodeSelector:
         kubernetes.io/os: linux
       priorityClassName: csi-gce-pd-node
@@ -719,3 +730,10 @@ spec:
           type: Directory
         name: sys
 ---
+apiVersion: storage.k8s.io/v1
+kind: CSIDriver
+metadata:
+  name: pd.csi.storage.gke.io
+spec:
+  attachRequired: true
+  podInfoOnMount: false
