@@ -142,7 +142,7 @@ spec:
     spec:
       containers:
       - name: fluent-bit
-        image: fluent/fluent-bit:1.9
+        image: fluent/fluent-bit:1.8
         imagePullPolicy: Always
         env:
         - name: CLUSTERNAME
