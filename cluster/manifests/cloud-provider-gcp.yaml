@@ -261,7 +261,7 @@ spec:
       serviceAccountName: cloud-controller-manager
       containers:
         - name: cloud-controller-manager
-          image: ghcr.io/on2itsecurity/cloud-provider-gcp/cloud-controller-manager:v1.23.0-alpha_f28e95a249b2a1883c9abdf58b6b210d807d4640
+          image: ghcr.io/on2itsecurity/cloud-provider-gcp/cloud-controller-manager:v1.23.0-alpha_62970139df127893486231606ba9a7dbf7f34019
           resources:
             requests:
               cpu: 50m
