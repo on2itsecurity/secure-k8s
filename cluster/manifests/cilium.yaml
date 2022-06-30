@@ -183,6 +183,7 @@ data:
   enable-host-port: "false"
   enable-external-ips: "true"
   enable-node-port: "true"
+  direct-routing-device: "eth0"
   enable-health-check-nodeport: "false"
   node-port-bind-protection: "true"
   enable-auto-protect-node-port-range: "true"
