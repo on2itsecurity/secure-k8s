@@ -4,6 +4,10 @@ kind: Namespace
 metadata:
   creationTimestamp: null
   name: cilium
+  labels:
+    kubernetes.io/metadata.name: cilium
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/warn: privileged
 spec: {}
 status: {}
 ---
