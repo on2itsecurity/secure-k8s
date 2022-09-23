@@ -291,7 +291,7 @@ spec:
       dnsPolicy: "ClusterFirst"
       containers:
         - name: gce-cluster-autoscaler
-          image: "k8s.gcr.io/autoscaling/cluster-autoscaler:v1.24.0"
+          image: "k8s.gcr.io/autoscaling/cluster-autoscaler:v1.25.0"
           imagePullPolicy: "IfNotPresent"
           command:
             - ./cluster-autoscaler
@@ -333,12 +333,12 @@ spec:
               readOnly: true
               subPath: gce.conf
       nodeSelector:
-        node-role.kubernetes.io/master: ""
+        node-role.kubernetes.io/control-plane: ""
       hostNetwork: true
       serviceAccountName: autoscaler-gce-cluster-autoscaler
       tolerations:
         - effect: NoSchedule
-          key: node-role.kubernetes.io/master
+          key: node-role.kubernetes.io/control-plane
       topologySpreadConstraints:
         - labelSelector:
             matchLabels:
