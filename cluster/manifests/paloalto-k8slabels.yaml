@@ -124,6 +124,10 @@ spec:
           readOnlyRootFilesystem: true
           runAsNonRoot: true
           runAsUser: 10100
+        ports:
+        - containerPort: 9090
+          name: prometheus
+          protocol: TCP
         volumeMounts:
         - mountPath: /secrets
           name: envini
