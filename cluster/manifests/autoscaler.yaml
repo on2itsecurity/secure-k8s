@@ -7,7 +7,7 @@ metadata:
     app.kubernetes.io/instance: "autoscaler"
     app.kubernetes.io/name: "gce-cluster-autoscaler"
     app.kubernetes.io/managed-by: "Helm"
-    helm.sh/chart: "cluster-autoscaler-9.19.1"
+    helm.sh/chart: "cluster-autoscaler-9.26.0"
   name: autoscaler-gce-cluster-autoscaler
   namespace: kube-system
 spec:
@@ -26,7 +26,7 @@ metadata:
     app.kubernetes.io/instance: "autoscaler"
     app.kubernetes.io/name: "gce-cluster-autoscaler"
     app.kubernetes.io/managed-by: "Helm"
-    helm.sh/chart: "cluster-autoscaler-9.19.1"
+    helm.sh/chart: "cluster-autoscaler-9.26.0"
   name: autoscaler-gce-cluster-autoscaler
   namespace: kube-system
 automountServiceAccountToken: true
@@ -39,7 +39,7 @@ metadata:
     app.kubernetes.io/instance: "autoscaler"
     app.kubernetes.io/name: "gce-cluster-autoscaler"
     app.kubernetes.io/managed-by: "Helm"
-    helm.sh/chart: "cluster-autoscaler-9.19.1"
+    helm.sh/chart: "cluster-autoscaler-9.26.0"
   name: autoscaler-gce-cluster-autoscaler
 rules:
   - apiGroups:
@@ -180,7 +180,7 @@ metadata:
     app.kubernetes.io/instance: "autoscaler"
     app.kubernetes.io/name: "gce-cluster-autoscaler"
     app.kubernetes.io/managed-by: "Helm"
-    helm.sh/chart: "cluster-autoscaler-9.19.1"
+    helm.sh/chart: "cluster-autoscaler-9.26.0"
   name: autoscaler-gce-cluster-autoscaler
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -199,7 +199,7 @@ metadata:
     app.kubernetes.io/instance: "autoscaler"
     app.kubernetes.io/name: "gce-cluster-autoscaler"
     app.kubernetes.io/managed-by: "Helm"
-    helm.sh/chart: "cluster-autoscaler-9.19.1"
+    helm.sh/chart: "cluster-autoscaler-9.26.0"
   name: autoscaler-gce-cluster-autoscaler
   namespace: kube-system
 rules:
@@ -228,7 +228,7 @@ metadata:
     app.kubernetes.io/instance: "autoscaler"
     app.kubernetes.io/name: "gce-cluster-autoscaler"
     app.kubernetes.io/managed-by: "Helm"
-    helm.sh/chart: "cluster-autoscaler-9.19.1"
+    helm.sh/chart: "cluster-autoscaler-9.26.0"
   name: autoscaler-gce-cluster-autoscaler
   namespace: kube-system
 roleRef:
@@ -248,7 +248,7 @@ metadata:
     app.kubernetes.io/instance: "autoscaler"
     app.kubernetes.io/name: "gce-cluster-autoscaler"
     app.kubernetes.io/managed-by: "Helm"
-    helm.sh/chart: "cluster-autoscaler-9.19.1"
+    helm.sh/chart: "cluster-autoscaler-9.26.0"
   name: autoscaler-gce-cluster-autoscaler
   namespace: kube-system
 spec:
@@ -272,7 +272,7 @@ metadata:
     app.kubernetes.io/instance: "autoscaler"
     app.kubernetes.io/name: "gce-cluster-autoscaler"
     app.kubernetes.io/managed-by: "Helm"
-    helm.sh/chart: "cluster-autoscaler-9.19.1"
+    helm.sh/chart: "cluster-autoscaler-9.26.0"
   name: autoscaler-gce-cluster-autoscaler
   namespace: kube-system
 spec:
@@ -291,12 +291,13 @@ spec:
       dnsPolicy: "ClusterFirst"
       containers:
         - name: gce-cluster-autoscaler
-          image: "k8s.gcr.io/autoscaling/cluster-autoscaler:v1.25.0"
+          image: "registry.k8s.io/autoscaling/cluster-autoscaler:v1.26.1"
           imagePullPolicy: "IfNotPresent"
           command:
             - ./cluster-autoscaler
             - --cloud-provider=gce
             - --namespace=kube-system
+            - --nodes=::igm
             - --node-group-auto-discovery=mig:namePrefix=igm-$(CLUSTERNAME),min=1,max=84
             - --balance-similar-node-groups=true
             - --cordon-node-before-terminating=true

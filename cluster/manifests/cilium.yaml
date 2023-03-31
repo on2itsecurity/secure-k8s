@@ -2,7 +2,6 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  creationTimestamp: null
   name: cilium
   labels:
     kubernetes.io/metadata.name: cilium
@@ -57,6 +56,13 @@ metadata:
   name: "cilium-operator"
   namespace: cilium
 ---
+# Source: cilium/templates/hubble-relay/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: "hubble-relay"
+  namespace: cilium
+---
 # Source: cilium/templates/hubble/tls-cronjob/serviceaccount.yaml
 apiVersion: v1
 kind: ServiceAccount
@@ -85,6 +91,7 @@ data:
   identity-allocation-mode: crd
   cilium-endpoint-gc-interval: "5m0s"
   nodes-gc-interval: "5m0s"
+  skip-cnp-status-startup-clean: "false"
   # Disable the usage of CiliumEndpoint CRD
   disable-endpoint-crd: "false"
 
@@ -196,7 +203,6 @@ data:
   enable-svc-source-range-check: "true"
   enable-l2-neigh-discovery: "true"
   arping-refresh-period: "30s"
-  enable-endpoint-routes: "true"
   enable-endpoint-health-checking: "true"
   enable-health-checking: "true"
   enable-well-known-identities: "false"
@@ -236,6 +242,26 @@ data:
   tofqdns-min-ttl: "3600"
   tofqdns-proxy-response-max-delay: "100ms"
   agent-not-ready-taint-key: "node.cilium.io/agent-not-ready"
+---
+# Source: cilium/templates/hubble-relay/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hubble-relay-config
+  namespace: cilium
+data:
+  config.yaml: |
+    cluster-name: default
+    peer-service: "hubble-peer.cilium.svc.cluster.local:443"
+    listen-address: :4245
+    dial-timeout: 
+    retry-timeout: 
+    sort-buffer-len-max: 
+    sort-buffer-drain-timeout: 
+    tls-client-cert-file: /var/lib/hubble-relay/tls/client.crt
+    tls-client-key-file: /var/lib/hubble-relay/tls/client.key
+    tls-hubble-server-ca-files: /var/lib/hubble-relay/tls/hubble-server-ca.crt
+    disable-server-tls: true
 ---
 # Source: cilium/templates/cilium-agent/clusterrole.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -599,6 +625,23 @@ subjects:
   name: "hubble-generate-certs"
   namespace: cilium
 ---
+# Source: cilium/templates/hubble-relay/service.yaml
+kind: Service
+apiVersion: v1
+metadata:
+  name: hubble-relay
+  namespace: cilium
+  labels:
+    k8s-app: hubble-relay
+spec:
+  type: "ClusterIP"
+  selector:
+    k8s-app: hubble-relay
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 4245
+---
 # Source: cilium/templates/hubble/peer-service.yaml
 apiVersion: v1
 kind: Service
@@ -648,7 +691,7 @@ spec:
     spec:
       containers:
       - name: cilium-agent
-        image: "quay.io/cilium/cilium:v1.12.2@sha256:986f8b04cfdb35cf714701e58e35da0ee63da2b8a048ab596ccb49de58d5ba36"
+        image: "quay.io/cilium/cilium:v1.12.7@sha256:8cb6b4742cc27b39e4f789d282a1fc2041decb6f5698bfe09112085a07b1fd61"
         imagePullPolicy: IfNotPresent
         command:
         - cilium-agent
@@ -731,11 +774,8 @@ spec:
               - /cni-uninstall.sh
         securityContext:
           seLinuxOptions:
-            level: 's0'
-            # Running with spc_t since we have removed the privileged mode.
-            # Users can change it to a different type as long as they have the
-            # type available on the system.
-            type: 'spc_t'
+            level: s0
+            type: spc_t
           capabilities:
             add:
               # Use to set socket permission
@@ -809,7 +849,7 @@ spec:
       # Required to mount cgroup2 filesystem on the underlying Kubernetes node.
       # We use nsenter command with host's cgroup and mount namespaces enabled.
       - name: mount-cgroup
-        image: "quay.io/cilium/cilium:v1.12.2@sha256:986f8b04cfdb35cf714701e58e35da0ee63da2b8a048ab596ccb49de58d5ba36"
+        image: "quay.io/cilium/cilium:v1.12.7@sha256:8cb6b4742cc27b39e4f789d282a1fc2041decb6f5698bfe09112085a07b1fd61"
         imagePullPolicy: IfNotPresent
         env:
         - name: CGROUP_ROOT
@@ -836,11 +876,8 @@ spec:
         terminationMessagePolicy: FallbackToLogsOnError
         securityContext:
           seLinuxOptions:
-            level: 's0'
-            # Running with spc_t since we have removed the privileged mode.
-            # Users can change it to a different type as long as they have the
-            # type available on the system.
-            type: 'spc_t'
+            level: s0
+            type: spc_t
           capabilities:
             drop:
               - ALL
@@ -851,7 +888,7 @@ spec:
               - SYS_CHROOT
               - SYS_PTRACE
       - name: apply-sysctl-overwrites
-        image: "quay.io/cilium/cilium:v1.12.2@sha256:986f8b04cfdb35cf714701e58e35da0ee63da2b8a048ab596ccb49de58d5ba36"
+        image: "quay.io/cilium/cilium:v1.12.7@sha256:8cb6b4742cc27b39e4f789d282a1fc2041decb6f5698bfe09112085a07b1fd61"
         imagePullPolicy: IfNotPresent
         env:
         - name: BIN_PATH
@@ -876,11 +913,8 @@ spec:
         terminationMessagePolicy: FallbackToLogsOnError
         securityContext:
           seLinuxOptions:
-            level: 's0'
-            # Running with spc_t since we have removed the privileged mode.
-            # Users can change it to a different type as long as they have the
-            # type available on the system.
-            type: 'spc_t'
+            level: s0
+            type: spc_t
           capabilities:
             drop:
               - ALL
@@ -894,7 +928,7 @@ spec:
       # from a privileged container because the mount propagation bidirectional
       # only works from privileged containers.
       - name: mount-bpf-fs
-        image: "quay.io/cilium/cilium:v1.12.2@sha256:986f8b04cfdb35cf714701e58e35da0ee63da2b8a048ab596ccb49de58d5ba36"
+        image: "quay.io/cilium/cilium:v1.12.7@sha256:8cb6b4742cc27b39e4f789d282a1fc2041decb6f5698bfe09112085a07b1fd61"
         imagePullPolicy: IfNotPresent
         args:
         - 'mount | grep "/sys/fs/bpf type bpf" || mount -t bpf bpf /sys/fs/bpf'
@@ -910,7 +944,7 @@ spec:
           mountPath: /sys/fs/bpf
           mountPropagation: Bidirectional
       - name: clean-cilium-state
-        image: "quay.io/cilium/cilium:v1.12.2@sha256:986f8b04cfdb35cf714701e58e35da0ee63da2b8a048ab596ccb49de58d5ba36"
+        image: "quay.io/cilium/cilium:v1.12.7@sha256:8cb6b4742cc27b39e4f789d282a1fc2041decb6f5698bfe09112085a07b1fd61"
         imagePullPolicy: IfNotPresent
         command:
         - /init-container.sh
@@ -930,11 +964,8 @@ spec:
         terminationMessagePolicy: FallbackToLogsOnError
         securityContext:
           seLinuxOptions:
-            level: 's0'
-            # Running with spc_t since we have removed the privileged mode.
-            # Users can change it to a different type as long as they have the
-            # type available on the system.
-            type: 'spc_t'
+            level: s0
+            type: spc_t
           capabilities:
             # Most of the capabilities here are the same ones used in the
             # cilium-agent's container because this container can be used to
@@ -1087,14 +1118,13 @@ spec:
     type: RollingUpdate
   template:
     metadata:
-      annotations:
       labels:
         io.cilium/app: operator
         name: cilium-operator
     spec:
       containers:
       - name: cilium-operator
-        image: quay.io/cilium/operator-generic:v1.12.2@sha256:00508f78dae5412161fa40ee30069c2802aef20f7bdd20e91423103ba8c0df6e
+        image: "quay.io/cilium/operator-generic:v1.12.7@sha256:80f24810bf8484974c757382eb2c7408c9c024e5cb0719f4a56fba3f47695c72"
         imagePullPolicy: IfNotPresent
         command:
         - cilium-operator-generic
@@ -1156,11 +1186,94 @@ spec:
         configMap:
           name: cilium-config
 ---
+# Source: cilium/templates/hubble-relay/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hubble-relay
+  namespace: cilium
+  labels:
+    k8s-app: hubble-relay
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      k8s-app: hubble-relay
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        k8s-app: hubble-relay
+    spec:
+      containers:
+        - name: hubble-relay
+          image: "quay.io/cilium/hubble-relay:v1.12.7@sha256:edf491e362b52e2b5461b2bff346a79c76365c9595b675146edd01f9c28ae942"
+          imagePullPolicy: IfNotPresent
+          command:
+            - hubble-relay
+          args:
+            - serve
+          ports:
+            - name: grpc
+              containerPort: 4245
+          readinessProbe:
+            tcpSocket:
+              port: grpc
+          livenessProbe:
+            tcpSocket:
+              port: grpc
+          volumeMounts:
+          - name: config
+            mountPath: /etc/hubble-relay
+            readOnly: true
+          - name: tls
+            mountPath: /var/lib/hubble-relay/tls
+            readOnly: true
+          terminationMessagePolicy: FallbackToLogsOnError
+      restartPolicy: Always
+      serviceAccount: "hubble-relay"
+      serviceAccountName: "hubble-relay"
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 1
+      affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                k8s-app: cilium
+            topologyKey: kubernetes.io/hostname
+      nodeSelector:
+        kubernetes.io/os: linux
+      volumes:
+      - name: config
+        configMap:
+          name: hubble-relay-config
+          items:
+          - key: config.yaml
+            path: config.yaml
+      - name: tls
+        projected:
+          # note: the leading zero means this number is in octal representation: do not remove it
+          defaultMode: 0400
+          sources:
+          - secret:
+              name: hubble-relay-client-certs
+              items:
+                - key: ca.crt
+                  path: hubble-server-ca.crt
+                - key: tls.crt
+                  path: client.crt
+                - key: tls.key
+                  path: client.key
+---
 # Source: cilium/templates/hubble/tls-cronjob/job.yaml
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: hubble-generate-certs-4e9e397b23
+  name: hubble-generate-certs-fe6ae0fdc3
   namespace: cilium
   labels:
     k8s-app: hubble-generate-certs
@@ -1186,6 +1299,8 @@ spec:
             - "--hubble-server-cert-generate"
             - "--hubble-server-cert-common-name=*.default.hubble-grpc.cilium.io"
             - "--hubble-server-cert-validity-duration=94608000s"
+            - "--hubble-relay-client-cert-generate"
+            - "--hubble-relay-client-cert-validity-duration=94608000s"
       hostNetwork: true
       serviceAccount: "hubble-generate-certs"
       serviceAccountName: "hubble-generate-certs"
@@ -1226,9 +1341,10 @@ spec:
                 - "--hubble-server-cert-generate"
                 - "--hubble-server-cert-common-name=*.default.hubble-grpc.cilium.io"
                 - "--hubble-server-cert-validity-duration=94608000s"
+                - "--hubble-relay-client-cert-generate"
+                - "--hubble-relay-client-cert-validity-duration=94608000s"
           hostNetwork: true
           serviceAccount: "hubble-generate-certs"
           serviceAccountName: "hubble-generate-certs"
           restartPolicy: OnFailure
       ttlSecondsAfterFinished: 1800
-
