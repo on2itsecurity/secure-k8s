@@ -2,6 +2,7 @@
 apiVersion: v1
 kind: Namespace
 metadata:
+  creationTimestamp: null
   name: cilium
   labels:
     kubernetes.io/metadata.name: cilium
@@ -203,6 +204,8 @@ data:
   enable-svc-source-range-check: "true"
   enable-l2-neigh-discovery: "true"
   arping-refresh-period: "30s"
+  enable-endpoint-routes: "true"
+  cni-uninstall: "true"
   enable-endpoint-health-checking: "true"
   enable-health-checking: "true"
   enable-well-known-identities: "false"
@@ -229,7 +232,7 @@ data:
   enable-bgp-control-plane: "false"
   procfs: "/host/proc"
   bpf-root: "/sys/fs/bpf"
-  cgroup-root: "/run/cilium/cgroupv2"
+  cgroup-root: "/sys/fs/cgroup"
   enable-k8s-terminating-endpoint: "true"
   remove-cilium-node-taints: "true"
   set-cilium-is-up-condition: "true"
@@ -684,14 +687,12 @@ spec:
         # in AppArmor.
         container.apparmor.security.beta.kubernetes.io/cilium-agent: "unconfined"
         container.apparmor.security.beta.kubernetes.io/clean-cilium-state: "unconfined"
-        container.apparmor.security.beta.kubernetes.io/mount-cgroup: "unconfined"
-        container.apparmor.security.beta.kubernetes.io/apply-sysctl-overwrites: "unconfined"
       labels:
         k8s-app: cilium
     spec:
       containers:
       - name: cilium-agent
-        image: "quay.io/cilium/cilium:v1.12.7@sha256:8cb6b4742cc27b39e4f789d282a1fc2041decb6f5698bfe09112085a07b1fd61"
+        image: "quay.io/cilium/cilium:v1.12.8@sha256:b6c3c48b380334b8f08dba6e0c28d906c0d722b8c2beb0d506b3cea27f66f78d"
         imagePullPolicy: IfNotPresent
         command:
         - cilium-agent
@@ -789,7 +790,7 @@ spec:
               # Used since cilium monitor uses mmap
               - IPC_LOCK
               # Used in iptables. Consider removing once we are iptables-free
-              #-SYS_MODULE
+              - SYS_MODULE
               # We need it for now but might not need it for >= 5.11 specially
               # for the 'SYS_RESOURCE'.
               # In >= 5.8 there's already BPF and PERMON capabilities
@@ -824,10 +825,11 @@ spec:
           # is privileged and set the mount propagation from host to container
           # in Cilium.
           mountPropagation: HostToContainer
+        # Check for duplicate mounts before mounting
+        - name: cilium-cgroup
+          mountPath: /sys/fs/cgroup
         - name: cilium-run
           mountPath: /var/run/cilium
-        - name: cni-path
-          mountPath: /host/opt/cni/bin
         - name: etc-cni-netd
           mountPath: /host/etc/cni/net.d
         - name: clustermesh-secrets
@@ -846,89 +848,11 @@ spec:
           mountPath: /var/lib/cilium/tls/hubble
           readOnly: true
       initContainers:
-      # Required to mount cgroup2 filesystem on the underlying Kubernetes node.
-      # We use nsenter command with host's cgroup and mount namespaces enabled.
-      - name: mount-cgroup
-        image: "quay.io/cilium/cilium:v1.12.7@sha256:8cb6b4742cc27b39e4f789d282a1fc2041decb6f5698bfe09112085a07b1fd61"
-        imagePullPolicy: IfNotPresent
-        env:
-        - name: CGROUP_ROOT
-          value: /run/cilium/cgroupv2
-        - name: BIN_PATH
-          value: /opt/cni/bin
-        command:
-        - sh
-        - -ec
-        # The statically linked Go program binary is invoked to avoid any
-        # dependency on utilities like sh and mount that can be missing on certain
-        # distros installed on the underlying host. Copy the binary to the
-        # same directory where we install cilium cni plugin so that exec permissions
-        # are available.
-        - |
-          cp /usr/bin/cilium-mount /hostbin/cilium-mount;
-          nsenter --cgroup=/hostproc/1/ns/cgroup --mount=/hostproc/1/ns/mnt "${BIN_PATH}/cilium-mount" $CGROUP_ROOT;
-          rm /hostbin/cilium-mount
-        volumeMounts:
-        - name: hostproc
-          mountPath: /hostproc
-        - name: cni-path
-          mountPath: /hostbin
-        terminationMessagePolicy: FallbackToLogsOnError
-        securityContext:
-          seLinuxOptions:
-            level: s0
-            type: spc_t
-          capabilities:
-            drop:
-              - ALL
-            add:
-              # Only used for 'mount' cgroup
-              - SYS_ADMIN
-              # Used for nsenter
-              - SYS_CHROOT
-              - SYS_PTRACE
-      - name: apply-sysctl-overwrites
-        image: "quay.io/cilium/cilium:v1.12.7@sha256:8cb6b4742cc27b39e4f789d282a1fc2041decb6f5698bfe09112085a07b1fd61"
-        imagePullPolicy: IfNotPresent
-        env:
-        - name: BIN_PATH
-          value: /opt/cni/bin
-        command:
-        - sh
-        - -ec
-        # The statically linked Go program binary is invoked to avoid any
-        # dependency on utilities like sh that can be missing on certain
-        # distros installed on the underlying host. Copy the binary to the
-        # same directory where we install cilium cni plugin so that exec permissions
-        # are available.
-        - |
-          cp /usr/bin/cilium-sysctlfix /hostbin/cilium-sysctlfix;
-          nsenter --mount=/hostproc/1/ns/mnt "${BIN_PATH}/cilium-sysctlfix";
-          rm /hostbin/cilium-sysctlfix
-        volumeMounts:
-        - name: hostproc
-          mountPath: /hostproc
-        - name: cni-path
-          mountPath: /hostbin
-        terminationMessagePolicy: FallbackToLogsOnError
-        securityContext:
-          seLinuxOptions:
-            level: s0
-            type: spc_t
-          capabilities:
-            drop:
-              - ALL
-            add:
-              # Required in order to access host's /etc/sysctl.d dir
-              - SYS_ADMIN
-              # Used for nsenter
-              - SYS_CHROOT
-              - SYS_PTRACE
       # Mount the bpf fs if it is not mounted. We will perform this task
       # from a privileged container because the mount propagation bidirectional
       # only works from privileged containers.
       - name: mount-bpf-fs
-        image: "quay.io/cilium/cilium:v1.12.7@sha256:8cb6b4742cc27b39e4f789d282a1fc2041decb6f5698bfe09112085a07b1fd61"
+        image: "quay.io/cilium/cilium:v1.12.8@sha256:b6c3c48b380334b8f08dba6e0c28d906c0d722b8c2beb0d506b3cea27f66f78d"
         imagePullPolicy: IfNotPresent
         args:
         - 'mount | grep "/sys/fs/bpf type bpf" || mount -t bpf bpf /sys/fs/bpf'
@@ -944,7 +868,7 @@ spec:
           mountPath: /sys/fs/bpf
           mountPropagation: Bidirectional
       - name: clean-cilium-state
-        image: "quay.io/cilium/cilium:v1.12.7@sha256:8cb6b4742cc27b39e4f789d282a1fc2041decb6f5698bfe09112085a07b1fd61"
+        image: "quay.io/cilium/cilium:v1.12.8@sha256:b6c3c48b380334b8f08dba6e0c28d906c0d722b8c2beb0d506b3cea27f66f78d"
         imagePullPolicy: IfNotPresent
         command:
         - /init-container.sh
@@ -975,7 +899,7 @@ spec:
               # Used since cilium modifies routing tables, etc...
               - NET_ADMIN
               # Used in iptables. Consider removing once we are iptables-free
-              #-SYS_MODULE
+              - SYS_MODULE
               # We need it for now but might not need it for >= 5.11 specially
               # for the 'SYS_RESOURCE'.
               # In >= 5.8 there's already BPF and PERMON capabilities
@@ -994,7 +918,7 @@ spec:
           mountPath: /sys/fs/bpf
           # Required to mount cgroup filesystem from the host to cilium agent pod
         - name: cilium-cgroup
-          mountPath: /run/cilium/cgroupv2
+          mountPath: /sys/fs/cgroup
           mountPropagation: HostToContainer
         - name: cilium-run
           mountPath: /var/run/cilium
@@ -1002,10 +926,32 @@ spec:
           requests:
             cpu: 100m
             memory: 100Mi # wait-for-kube-proxy
+      # Install the CNI binaries in an InitContainer so we don't have a writable host mount in the agent
+      - name: install-cni-binaries
+        image: "quay.io/cilium/cilium:v1.12.8@sha256:b6c3c48b380334b8f08dba6e0c28d906c0d722b8c2beb0d506b3cea27f66f78d"
+        imagePullPolicy: IfNotPresent
+        command:
+          - "/install-plugin.sh"
+        resources:
+          requests:
+            cpu: 100m
+            memory: 10Mi
+        securityContext:
+          seLinuxOptions:
+            level: s0
+            type: spc_t
+          capabilities:
+            drop:
+              - ALL
+        terminationMessagePolicy: FallbackToLogsOnError
+        volumeMounts:
+          - name: cni-path
+            mountPath: /host/opt/cni/bin
       restartPolicy: Always
       priorityClassName: system-node-critical
       serviceAccount: "cilium"
       serviceAccountName: "cilium"
+      automountServiceAccountToken: true
       terminationGracePeriodSeconds: 1
       hostNetwork: true
       affinity:
@@ -1030,15 +976,10 @@ spec:
         hostPath:
           path: /sys/fs/bpf
           type: DirectoryOrCreate
-      # To mount cgroup2 filesystem on the host
-      - name: hostproc
-        hostPath:
-          path: /proc
-          type: Directory
       # To keep state between restarts / upgrades for cgroup2 filesystem
       - name: cilium-cgroup
         hostPath:
-          path: /run/cilium/cgroupv2
+          path: /sys/fs/cgroup
           type: DirectoryOrCreate
       # To install cilium cni plugin in the host
       - name: cni-path
@@ -1118,13 +1059,14 @@ spec:
     type: RollingUpdate
   template:
     metadata:
+      annotations:
       labels:
         io.cilium/app: operator
         name: cilium-operator
     spec:
       containers:
       - name: cilium-operator
-        image: "quay.io/cilium/operator-generic:v1.12.7@sha256:80f24810bf8484974c757382eb2c7408c9c024e5cb0719f4a56fba3f47695c72"
+        image: "quay.io/cilium/operator-generic:v1.12.8@sha256:7431f0c2001fb875b1a8901e103825394c38cd6c63a1435a3273ed20ae0e7578"
         imagePullPolicy: IfNotPresent
         command:
         - cilium-operator-generic
@@ -1167,6 +1109,7 @@ spec:
       priorityClassName: system-cluster-critical
       serviceAccount: "cilium-operator"
       serviceAccountName: "cilium-operator"
+      automountServiceAccountToken: true
       # In HA mode, cilium-operator pods must not be scheduled on the same
       # node as they will clash with each other.
       affinity:
@@ -1205,12 +1148,13 @@ spec:
     type: RollingUpdate
   template:
     metadata:
+      annotations:
       labels:
         k8s-app: hubble-relay
     spec:
       containers:
         - name: hubble-relay
-          image: "quay.io/cilium/hubble-relay:v1.12.7@sha256:edf491e362b52e2b5461b2bff346a79c76365c9595b675146edd01f9c28ae942"
+          image: "quay.io/cilium/hubble-relay:v1.12.8@sha256:508cf85bb1a11c13abd995e3c5fd18ed3c2f1d26cbf463a97297e8b8c9149f13"
           imagePullPolicy: IfNotPresent
           command:
             - hubble-relay
@@ -1273,7 +1217,7 @@ spec:
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: hubble-generate-certs-fe6ae0fdc3
+  name: hubble-generate-certs-be6179cde5
   namespace: cilium
   labels:
     k8s-app: hubble-generate-certs
@@ -1304,6 +1248,7 @@ spec:
       hostNetwork: true
       serviceAccount: "hubble-generate-certs"
       serviceAccountName: "hubble-generate-certs"
+      automountServiceAccountToken: true
       restartPolicy: OnFailure
   ttlSecondsAfterFinished: 1800
 ---
@@ -1346,5 +1291,6 @@ spec:
           hostNetwork: true
           serviceAccount: "hubble-generate-certs"
           serviceAccountName: "hubble-generate-certs"
+          automountServiceAccountToken: true
           restartPolicy: OnFailure
       ttlSecondsAfterFinished: 1800
