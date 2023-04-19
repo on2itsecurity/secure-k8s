@@ -291,13 +291,12 @@ spec:
       dnsPolicy: "ClusterFirst"
       containers:
         - name: gce-cluster-autoscaler
-          image: "registry.k8s.io/autoscaling/cluster-autoscaler:v1.26.1"
+          image: "registry.k8s.io/autoscaling/cluster-autoscaler:v1.26.2"
           imagePullPolicy: "IfNotPresent"
           command:
             - ./cluster-autoscaler
             - --cloud-provider=gce
             - --namespace=kube-system
-            - --nodes=::igm
             - --node-group-auto-discovery=mig:namePrefix=igm-$(CLUSTERNAME),min=1,max=84
             - --balance-similar-node-groups=true
             - --cordon-node-before-terminating=true

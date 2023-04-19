@@ -108,7 +108,7 @@ spec:
       - command:
         - /server
         - --inifile=/secrets/env.ini
-        image: ghcr.io/on2itsecurity/noc-k8slabels-v1:latest
+        image: ghcr.io/on2itsecurity/noc-k8slabels-v1:latest@sha256:c2eb841683fdb3134adeba91e65ca57dd973612f75d1ef16139abb14fe737442
         name: noc-k8slables-v1
         resources:
           limits:
@@ -118,9 +118,12 @@ spec:
             cpu: 30m
             memory: 128Mi
         securityContext:
+          allowPrivilegeEscalation: false
           capabilities:
             drop:
-            - all
+            - ALL
+          seccompProfile:
+            type: RuntimeDefault
           readOnlyRootFilesystem: true
           runAsNonRoot: true
           runAsUser: 10100

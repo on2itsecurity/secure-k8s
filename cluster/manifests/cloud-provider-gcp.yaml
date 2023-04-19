@@ -53,6 +53,7 @@ rules:
   verbs:
   - get
   - update
+  - patch
 - apiGroups:
   - ""
   resources:
@@ -261,7 +262,7 @@ spec:
       serviceAccountName: cloud-controller-manager
       containers:
         - name: cloud-controller-manager
-          image: ghcr.io/on2itsecurity/cloud-provider-gcp/cloud-controller-manager:v1.26.2-alpha_4d454f17fbdccf89d27fbc14586d71f4dfff3694
+          image: ghcr.io/on2itsecurity/cloud-provider-gcp/cloud-controller-manager:v1.26.2-alpha_1a9ef617cdca901e56b388bd1ef2fe922b1248ad
           resources:
             requests:
               cpu: 50m
@@ -274,6 +275,7 @@ spec:
             - --cloud-provider=gce
             - --cloud-config=/etc/gce.conf
             - --use-service-account-credentials
+            - --controllers=*,-gkenetworkparamset
             - -v=2
           env:
             - name: CLUSTERCIDR

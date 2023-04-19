@@ -1,14 +1,14 @@
----
 apiVersion: v1
 kind: Namespace
 metadata:
   creationTimestamp: null
-  name: logging
   labels:
     kubernetes.io/metadata.name: logging
     pod-security.kubernetes.io/enforce: privileged
     pod-security.kubernetes.io/warn: privileged
+  name: logging
 spec: {}
+status: {}
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -17,8 +17,8 @@ metadata:
     app.kubernetes.io/instance: fluent-bit
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: fluent-bit
-    app.kubernetes.io/version: 1.9.8
-    helm.sh/chart: fluent-bit-0.20.8
+    app.kubernetes.io/version: 1.9.9
+    helm.sh/chart: fluent-bit-0.20.11
   name: fluent-bit
   namespace: logging
 ---
@@ -29,8 +29,8 @@ metadata:
     app.kubernetes.io/instance: fluent-bit
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: fluent-bit
-    app.kubernetes.io/version: 1.9.8
-    helm.sh/chart: fluent-bit-0.20.8
+    app.kubernetes.io/version: 1.9.9
+    helm.sh/chart: fluent-bit-0.20.11
   name: fluent-bit
 rules:
 - apiGroups:
@@ -44,49 +44,19 @@ rules:
   - watch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: fluentbit
-rules:
-- apiGroups:
-  - ""
-  resources:
-  - namespaces
-  - pods
-  - nodes
-  - nodes/proxy
-  verbs:
-  - get
-  - list
-  - watch
----
-apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   labels:
     app.kubernetes.io/instance: fluent-bit
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: fluent-bit
-    app.kubernetes.io/version: 1.9.8
-    helm.sh/chart: fluent-bit-0.20.8
+    app.kubernetes.io/version: 1.9.9
+    helm.sh/chart: fluent-bit-0.20.11
   name: fluent-bit
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: fluent-bit
-subjects:
-- kind: ServiceAccount
-  name: fluent-bit
-  namespace: logging
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: fluentbit
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: fluentbit
 subjects:
 - kind: ServiceAccount
   name: fluent-bit
@@ -96,80 +66,141 @@ apiVersion: v1
 data:
   custom_parsers.conf: |
     [PARSER]
-        Name docker_no_time
-        Format json
-        Time_Keep Off
-        Time_Key time
-        Time_Format %Y-%m-%dT%H:%M:%S.%L
+      Name           audit
+      Format         json
+      Time_Key       requestReceivedTimestamp
+      Time_Format    %Y-%m-%dT%H:%M:%S.%L%z
+
+    [PARSER]
+      # http://rubular.com/r/tjUt3Awgg4
+      Name           cri
+      Format         regex
+      Regex          ^(?<time>[^ ]+) (?<stream>stdout|stderr) (?<logtag>[^ ]*) (?<msg>.*)$
+      Time_Key       time
+      Time_Format    %Y-%m-%dT%H:%M:%S.%L%z
+      Time_Keep      On
   fluent-bit.conf: |
+    # http_server: Needed for startup/live/ready checks
     [SERVICE]
-        Daemon Off
-        Flush 1
-        Log_Level info
-        Parsers_File parsers.conf
-        Parsers_File custom_parsers.conf
-        HTTP_Server On
-        HTTP_Listen 0.0.0.0
-        HTTP_Port 2020
-        Health_Check On
+      Flush         5
+      Daemon        Off
+      Log_Level     warn
+      Parsers_File  custom_parsers.conf
+      http_server   On
 
     [INPUT]
-        Name tail
-        Path /var/log/containers/*.log
-        Parser cri
-        Tag kube.*
-        Mem_Buf_Limit 5MB
-        Skip_Long_Lines On
-        DB /var/log/fluentbit.db
+      Name             kmsg
+      Tag              kernel.${KUBELET_NAME}
+
+    [INPUT]
+      Name             tcp
+      Listen           0.0.0.0
+      Port             12345
+      Format           json
+      Tag              talos.${KUBELET_NAME}
+
+    [INPUT]
+      Name             tail
+      Alias            kubernetes
+      Path             /var/log/containers/*.log
+      Parser           cri
+      Mem_Buf_Limit    5MB
+      Skip_Long_Lines  On
+      Tag              kubernetes.*
+      Skip_Empty_Lines On
+      DB               /var/log/fluentbit-kubernetes.db
+
+    [INPUT]
+      Name             tail
+      Alias            audit
+      Path             /var/log/audit/kube/*.log
+      Parser           audit
+      Tag              audit.${KUBELET_NAME}
+      Skip_Empty_Lines On
+      DB               /var/log/fluentbit-audit.db
+
+    # Use_Kubelet: Faster and does not flood kube-api when having a lot of nodes
+    # tls.verify: Kubelet certs are selfsigned by the node
+    [FILTER]
+      Name                kubernetes
+      Alias               kubernetes
+      Match               kubernetes.*
+      Kube_Tag_Prefix     kubernetes.var.log.containers.
+      Use_Kubelet         On
+      Kubelet_Host        ${KUBELET_IP}
+      tls.verify          Off
+      Buffer_Size         0
+      Cache_Use_Docker_Id On
+      Kube_Meta_Cache_TTL 10m
 
     [FILTER]
-        Name              grep
-        Match             kube.*
-        Regex             message .+
-
-    [FILTER]
-        Name kubernetes
-        Match kube.*
-        Merge_Log On
-        Keep_Log Off
-        K8S-Logging.Parser On
-        K8S-Logging.Exclude On
-        Annotations Off
-        Labels On
-        Use_Kubelet On
-        Kubelet_Host ${KUBELET_HOST}
-        tls.verify Off
-        Buffer_Size 0
-        Cache_Use_Docker_Id On
-        Kube_Meta_Cache_TTL 10m
+      Name          modify
+      Match         kubernetes.*
+      Remove        logtag
 
     [OUTPUT]
-        Name                    stackdriver
-        Match                   kube.*
-        Resource                k8s_container
-        k8s_cluster_name        ${CLUSTERNAME}
-        k8s_cluster_location    ${CLUSTERLOCATION}
-        google_service_credentials  /etc/cloud_sa/gsa.json
+      Name                        stackdriver
+      Match                       kubernetes.*
+      tag_prefix                  kubernetes.var.log.containers.
+      Resource                    k8s_container
+      workers                     1 # https://github.com/fluent/fluent-bit/issues/5081
+      k8s_cluster_name            ${CLUSTERNAME}
+      k8s_cluster_location        ${CLUSTERLOCATION}
+      google_service_credentials  /etc/cloud_sa/gsa.json
+
+    [OUTPUT]
+      Name                        stackdriver
+      Match                       talos.*
+      tag_prefix                  talos.
+      Resource                    k8s_node
+      workers                     1 # https://github.com/fluent/fluent-bit/issues/5081
+      k8s_cluster_name            ${CLUSTERNAME}
+      k8s_cluster_location        ${CLUSTERLOCATION}
+      google_service_credentials  /etc/cloud_sa/gsa.json
+
+    [OUTPUT]
+      Name                        stackdriver
+      Match                       audit.*
+      tag_prefix                  audit.
+      Resource                    k8s_node
+      workers                     1 # https://github.com/fluent/fluent-bit/issues/5081
+      k8s_cluster_name            ${CLUSTERNAME}
+      k8s_cluster_location        ${CLUSTERLOCATION}
+      google_service_credentials  /etc/cloud_sa/gsa.json
+
+    [OUTPUT]
+      Name                        stackdriver
+      Match                       kernel.*
+      tag_prefix                  kernel.
+      Resource                    k8s_node
+      workers                     1 # https://github.com/fluent/fluent-bit/issues/5081
+      k8s_cluster_name            ${CLUSTERNAME}
+      k8s_cluster_location        ${CLUSTERLOCATION}
+      google_service_credentials  /etc/cloud_sa/gsa.json
 kind: ConfigMap
 metadata:
   labels:
     app.kubernetes.io/instance: fluent-bit
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: fluent-bit
-    app.kubernetes.io/version: 1.9.8
-    helm.sh/chart: fluent-bit-0.20.8
+    app.kubernetes.io/version: 1.9.9
+    helm.sh/chart: fluent-bit-0.20.11
   name: fluent-bit
   namespace: logging
 ---
 apiVersion: v1
 kind: Service
 metadata:
+  annotations:
+    prometheus.io/path: /api/v1/metrics/prometheus
+    prometheus.io/port: "2020"
+    prometheus.io/scrape: "true"
   labels:
     app.kubernetes.io/instance: fluent-bit
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: fluent-bit
-    app.kubernetes.io/version: 1.9.8
-    helm.sh/chart: fluent-bit-0.20.8
+    app.kubernetes.io/version: 1.9.9
+    helm.sh/chart: fluent-bit-0.20.11
   name: fluent-bit
   namespace: logging
 spec:
@@ -178,6 +209,10 @@ spec:
     port: 2020
     protocol: TCP
     targetPort: http
+  - name: talos
+    port: 12345
+    protocol: TCP
+    targetPort: talos
   selector:
     app.kubernetes.io/instance: fluent-bit
     app.kubernetes.io/name: fluent-bit
@@ -198,8 +233,8 @@ metadata:
     app.kubernetes.io/instance: fluent-bit
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: fluent-bit
-    app.kubernetes.io/version: 1.9.8
-    helm.sh/chart: fluent-bit-0.20.8
+    app.kubernetes.io/version: 1.9.9
+    helm.sh/chart: fluent-bit-0.20.11
   name: fluent-bit
   namespace: logging
 spec:
@@ -210,32 +245,35 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/config: 1a6aaad01ca6d3fe419a0934bc845ba87ab6a5ab116bb94615ea68549aad0a6c
+        checksum/config: 5b7943e222d3c32e08fd9f23bb93f2b6bca0dcca08de03d145d3f4fc8c6df1a1
         checksum/luascripts: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
         fluentbit.io/exclude: "true"
       labels:
-        app: fluentbit
         app.kubernetes.io/instance: fluent-bit
         app.kubernetes.io/name: fluent-bit
         k8s-app: fluent-bit-logging
     spec:
       containers:
       - env:
-        - name: CLUSTERNAME
-          valueFrom:
-            configMapKeyRef:
-              name: clusterconfig
-              key: cluster.name
-        - name: CLUSTERLOCATION
-          valueFrom:
-            configMapKeyRef:
-              name: clusterconfig
-              key: cluster.location
-        - name: KUBELET_HOST
+        - name: KUBELET_NAME
           valueFrom:
             fieldRef:
               fieldPath: spec.nodeName
-        image: cr.fluentbit.io/fluent/fluent-bit:1.9.8
+        - name: KUBELET_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        - name: CLUSTERNAME
+          valueFrom:
+            configMapKeyRef:
+              key: cluster.name
+              name: clusterconfig
+        - name: CLUSTERLOCATION
+          valueFrom:
+            configMapKeyRef:
+              key: cluster.location
+              name: clusterconfig
+        image: cr.fluentbit.io/fluent/fluent-bit:2.0.11
         imagePullPolicy: IfNotPresent
         livenessProbe:
           httpGet:
@@ -245,6 +283,9 @@ spec:
         ports:
         - containerPort: 2020
           name: http
+          protocol: TCP
+        - containerPort: 12345
+          name: talos
           protocol: TCP
         readinessProbe:
           httpGet:
@@ -258,10 +299,21 @@ spec:
             cpu: 100m
             memory: 128Mi
         securityContext:
+          allowPrivilegeEscalation: false
           capabilities:
+            add:
+            - DAC_OVERRIDE
+            - SYSLOG
             drop:
             - ALL
+          privileged: true
           readOnlyRootFilesystem: true
+        startupProbe:
+          failureThreshold: 60
+          httpGet:
+            path: /
+            port: http
+          periodSeconds: 1
         volumeMounts:
         - mountPath: /fluent-bit/etc/fluent-bit.conf
           name: config
@@ -271,6 +323,9 @@ spec:
           subPath: custom_parsers.conf
         - mountPath: /var/log
           name: varlog
+        - mountPath: /dev/kmsg
+          name: kmsg
+          readOnly: true
         - mountPath: /etc/cloud_sa
           name: cloud-sa-volume
           readOnly: true
@@ -292,27 +347,35 @@ spec:
       - hostPath:
           path: /var/log
         name: varlog
+      - hostPath:
+          path: /dev/kmsg
+        name: kmsg
       - name: cloud-sa-volume
         secret:
           defaultMode: 420
           secretName: fluentbit-sa
 ---
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
 metadata:
-  labels:
-    app.kubernetes.io/instance: fluent-bit
-    app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/name: fluent-bit
-    app.kubernetes.io/version: 1.9.8
-    helm.sh/chart: fluent-bit-0.20.8
-  name: fluent-bit
+  name: ingress
   namespace: logging
 spec:
-  ingress: null
-  podSelector:
-    matchLabels:
-      app.kubernetes.io/instance: fluent-bit
-      app.kubernetes.io/name: fluent-bit
-  policyTypes:
-  - Ingress
+  endpointSelector: {}
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        io.kubernetes.pod.namespace.labels.kubernetes.io/metadata.name: monitoring
+    toPorts:
+    - ports:
+      - port: "2020"
+  - fromEntities:
+    - host
+    toPorts:
+    - ports:
+      - port: "12345"
+  - fromEntities:
+    - health
+    toPorts:
+    - ports:
+      - port: "2020"
