@@ -12,6 +12,14 @@ metadata:
   name: noc-k8slabels-v1
   namespace: paloalto
 ---
+apiVersion: scheduling.k8s.io/v1
+description: palo alto user-id label updater
+kind: PriorityClass
+metadata:
+  name: labelupdater
+preemptionPolicy: PreemptLowerPriority
+value: 1200
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -135,6 +143,7 @@ spec:
         - mountPath: /secrets
           name: envini
       serviceAccountName: noc-k8slabels-v1
+      priorityClassName: labelupdater
       volumes:
       - name: envini
         secret:

@@ -307,7 +307,7 @@ spec:
             - --scale-down-enabled=true
             - --skip-nodes-with-local-storage=false
             - --stderrthreshold=info
-            - --v=4
+            - --v=2
           env:
             - name: CLUSTERNAME
               valueFrom:
