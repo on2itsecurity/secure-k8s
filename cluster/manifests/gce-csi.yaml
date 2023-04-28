@@ -577,8 +577,7 @@ spec:
         env:
         - name: GOOGLE_APPLICATION_CREDENTIALS
           value: /etc/cloud-sa/cloud-sa.json
-#        image: registry.k8s.io/cloud-provider-gcp/gcp-compute-persistent-disk-csi-driver:v1.10.0
-        image: us.gcr.io/prod-usa/gce-pd:v1.9.0-rc1-68-g87c973c5-dirty@sha256:4fdc052a01e7bee99331c99d29a3e0956351ecb9423139ff3c4c8686c3427422
+        image: registry.k8s.io/cloud-provider-gcp/gcp-compute-persistent-disk-csi-driver:v1.10.1
         name: gce-pd-driver
         volumeMounts:
         - mountPath: /csi
@@ -633,7 +632,7 @@ spec:
         - --v=2
         - --endpoint=unix:/csi/csi.sock
         - --run-controller-service=false
-        image: us.gcr.io/prod-usa/gce-pd:v1.9.0-rc1-68-g87c973c5-dirty@sha256:4fdc052a01e7bee99331c99d29a3e0956351ecb9423139ff3c4c8686c3427422
+        image: registry.k8s.io/cloud-provider-gcp/gcp-compute-persistent-disk-csi-driver:v1.10.1
         name: gce-pd-driver
         securityContext:
           privileged: true
