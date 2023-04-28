@@ -2,10 +2,11 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  creationTimestamp: null
+  labels:
+    kubernetes.io/metadata.name: cilium
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/warn: privileged
   name: cilium
-spec: {}
-status: {}
 ---
 # Source: cilium/templates/cilium-resource-quota.yaml
 apiVersion: v1
@@ -1207,7 +1208,7 @@ spec:
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: hubble-generate-certs-be6179cde5
+  name: hubble-generate-certs-1eaab61b81
   namespace: cilium
   labels:
     k8s-app: hubble-generate-certs
@@ -1236,6 +1237,9 @@ spec:
             - "--hubble-relay-client-cert-generate"
             - "--hubble-relay-client-cert-validity-duration=94608000s"
       hostNetwork: true
+      tolerations:
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/control-plane
       serviceAccount: "hubble-generate-certs"
       serviceAccountName: "hubble-generate-certs"
       automountServiceAccountToken: true
@@ -1279,6 +1283,9 @@ spec:
                 - "--hubble-relay-client-cert-generate"
                 - "--hubble-relay-client-cert-validity-duration=94608000s"
           hostNetwork: true
+          tolerations:
+            - effect: NoSchedule
+              key: node-role.kubernetes.io/control-plane
           serviceAccount: "hubble-generate-certs"
           serviceAccountName: "hubble-generate-certs"
           automountServiceAccountToken: true
