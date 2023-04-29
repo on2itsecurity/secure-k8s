@@ -456,11 +456,11 @@ spec:
   replicas: 2
   selector:
     matchLabels:
-      app: gcp-compute-persistent-disk-csi-driver
+      app: csi-gce-pd-controller
   template:
     metadata:
       labels:
-        app: gcp-compute-persistent-disk-csi-driver
+        app: csi-gce-pd-controller
     spec:
       containers:
       - args:
@@ -588,6 +588,13 @@ spec:
       hostNetwork: false
       nodeSelector:
         kubernetes.io/os: linux
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                app: csi-gce-pd-controller
+            topologyKey: topology.kubernetes.io/zone
       priorityClassName: csi-gce-pd-controller
       serviceAccountName: csi-gce-pd-controller-sa
       volumes:

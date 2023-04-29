@@ -335,6 +335,129 @@ spec:
       hostNetwork: false
       priorityClassName: logging
       serviceAccountName: fluent-bit
+      volumes:
+      - configMap:
+          name: fluent-bit
+        name: config
+      - hostPath:
+          path: /var/log
+        name: varlog
+      - hostPath:
+          path: /dev/kmsg
+        name: kmsg
+      - name: cloud-sa-volume
+        secret:
+          defaultMode: 420
+          secretName: fluentbit-sa
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  labels:
+    app.kubernetes.io/instance: fluent-bit
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: fluent-bit
+    app.kubernetes.io/version: 2.0.11
+    helm.sh/chart: fluent-bit-0.27.0
+  name: fluent-bit-controlplane
+  namespace: logging
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: fluent-bit
+      app.kubernetes.io/name: fluent-bit
+  template:
+    metadata:
+      annotations:
+        checksum/config: b0a59866733d60d171ca3a52f872ab40307baafd50861c7a465836be6a63d65d
+        checksum/luascripts: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+        fluentbit.io/exclude: "true"
+      labels:
+        app.kubernetes.io/instance: fluent-bit
+        app.kubernetes.io/name: fluent-bit
+        k8s-app: fluent-bit-logging
+    spec:
+      containers:
+      - env:
+        - name: KUBELET_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: KUBELET_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        - name: CLUSTERNAME
+          valueFrom:
+            configMapKeyRef:
+              key: cluster.name
+              name: clusterconfig
+        - name: CLUSTERLOCATION
+          valueFrom:
+            configMapKeyRef:
+              key: cluster.location
+              name: clusterconfig
+        image: cr.fluentbit.io/fluent/fluent-bit:2.1.1
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          httpGet:
+            path: /
+            port: http
+        name: fluent-bit
+        ports:
+        - containerPort: 2020
+          name: http
+          protocol: TCP
+        - containerPort: 12345
+          name: talos
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /api/v1/health
+            port: http
+        resources:
+          limits:
+            cpu: 100m
+            memory: 128Mi
+          requests:
+            cpu: 100m
+            memory: 128Mi
+        securityContext:
+          capabilities:
+            add:
+            - DAC_OVERRIDE
+            - SYSLOG
+            drop:
+            - ALL
+          privileged: true
+          readOnlyRootFilesystem: true
+        startupProbe:
+          failureThreshold: 60
+          httpGet:
+            path: /
+            port: http
+          periodSeconds: 1
+        volumeMounts:
+        - mountPath: /fluent-bit/etc/fluent-bit.conf
+          name: config
+          subPath: fluent-bit.conf
+        - mountPath: /fluent-bit/etc/custom_parsers.conf
+          name: config
+          subPath: custom_parsers.conf
+        - mountPath: /var/log
+          name: varlog
+        - mountPath: /dev/kmsg
+          name: kmsg
+          readOnly: true
+        - mountPath: /etc/cloud_sa
+          name: cloud-sa-volume
+          readOnly: true
+      dnsPolicy: ClusterFirst
+      hostNetwork: true
+      priorityClassName: logging
+      serviceAccountName: fluent-bit
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: ""
       tolerations:
       - effect: NoSchedule
         key: node-role.kubernetes.io/control-plane

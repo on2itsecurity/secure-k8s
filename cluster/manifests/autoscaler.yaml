@@ -297,7 +297,7 @@ spec:
             - ./cluster-autoscaler
             - --cloud-provider=gce
             - --namespace=kube-system
-            - --node-group-auto-discovery=mig:namePrefix=igm-$(CLUSTERNAME),min=1,max=84
+            - --node-group-auto-discovery=mig:namePrefix=igm-$(CLUSTERNAME),min=2,max=84
             - --balance-similar-node-groups=true
             - --cordon-node-before-terminating=true
             - --daemonset-eviction-for-empty-nodes=true
