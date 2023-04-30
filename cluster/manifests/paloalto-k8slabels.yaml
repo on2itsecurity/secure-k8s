@@ -144,6 +144,13 @@ spec:
           name: envini
       serviceAccountName: noc-k8slabels-v1
       priorityClassName: labelupdater
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                app: noc-k8slabels-v1
+            topologyKey: topology.kubernetes.io/zone
       volumes:
       - name: envini
         secret:

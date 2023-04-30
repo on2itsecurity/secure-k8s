@@ -86,6 +86,7 @@ data:
     [SERVICE]
       Flush         5
       Daemon        Off
+      http_listen   ${LISTEN}
       Log_Level     warn
       Parsers_File  custom_parsers.conf
       http_server   On
@@ -96,7 +97,7 @@ data:
 
     [INPUT]
       Name             tcp
-      Listen           0.0.0.0
+      Listen           ${LISTEN}
       Port             12345
       Format           json
       Tag              talos.${KUBELET_NAME}
@@ -258,6 +259,8 @@ spec:
     spec:
       containers:
       - env:
+        - name: LISTEN
+          value: "0.0.0.0"
         - name: KUBELET_NAME
           valueFrom:
             fieldRef:
@@ -379,6 +382,8 @@ spec:
     spec:
       containers:
       - env:
+        - name: LISTEN
+          value: "127.0.0.1"
         - name: KUBELET_NAME
           valueFrom:
             fieldRef:

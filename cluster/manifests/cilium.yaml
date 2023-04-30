@@ -954,6 +954,12 @@ spec:
             topologyKey: kubernetes.io/hostname
       nodeSelector:
         kubernetes.io/os: linux
+      tolerations:
+        - effect: NoSchedule
+          key: node.cloudprovider.kubernetes.io/uninitialized
+          value: "true"
+        - effect: NoSchedule
+          key: node.kubernetes.io/not-ready
       volumes:
         # To keep state between restarts / upgrades
       - name: cilium-run
@@ -1109,6 +1115,12 @@ spec:
             topologyKey: kubernetes.io/hostname
       nodeSelector:
         kubernetes.io/os: linux
+      tolerations:
+        - effect: NoSchedule
+          key: node.cloudprovider.kubernetes.io/uninitialized
+          value: "true"
+        - effect: NoSchedule
+          key: node.kubernetes.io/not-ready
       volumes:
         # To read the configuration from the config map
       - name: cilium-config-path
