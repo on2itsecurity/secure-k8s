@@ -17,8 +17,8 @@ metadata:
     app.kubernetes.io/instance: fluent-bit
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: fluent-bit
-    app.kubernetes.io/version: 2.0.11
-    helm.sh/chart: fluent-bit-0.27.0
+    app.kubernetes.io/version: 2.1.2
+    helm.sh/chart: fluent-bit-0.28.0
   name: fluent-bit
   namespace: logging
 ---
@@ -29,8 +29,8 @@ metadata:
     app.kubernetes.io/instance: fluent-bit
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: fluent-bit
-    app.kubernetes.io/version: 2.0.11
-    helm.sh/chart: fluent-bit-0.27.0
+    app.kubernetes.io/version: 2.1.2
+    helm.sh/chart: fluent-bit-0.28.0
   name: fluent-bit
 rules:
 - apiGroups:
@@ -52,8 +52,8 @@ metadata:
     app.kubernetes.io/instance: fluent-bit
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: fluent-bit
-    app.kubernetes.io/version: 2.0.11
-    helm.sh/chart: fluent-bit-0.27.0
+    app.kubernetes.io/version: 2.1.2
+    helm.sh/chart: fluent-bit-0.28.0
   name: fluent-bit
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -142,6 +142,11 @@ data:
       Match         kubernetes.*
       Remove        logtag
 
+    [FILTER]
+      Name          grep
+      Match         talos.*
+      Exclude       talos-level info
+
     [OUTPUT]
       Name                        stackdriver
       Match                       kubernetes.*
@@ -187,8 +192,8 @@ metadata:
     app.kubernetes.io/instance: fluent-bit
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: fluent-bit
-    app.kubernetes.io/version: 2.0.11
-    helm.sh/chart: fluent-bit-0.27.0
+    app.kubernetes.io/version: 2.1.2
+    helm.sh/chart: fluent-bit-0.28.0
   name: fluent-bit
   namespace: logging
 ---
@@ -203,8 +208,8 @@ metadata:
     app.kubernetes.io/instance: fluent-bit
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: fluent-bit
-    app.kubernetes.io/version: 2.0.11
-    helm.sh/chart: fluent-bit-0.27.0
+    app.kubernetes.io/version: 2.1.2
+    helm.sh/chart: fluent-bit-0.28.0
   name: fluent-bit
   namespace: logging
 spec:
@@ -237,8 +242,8 @@ metadata:
     app.kubernetes.io/instance: fluent-bit
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: fluent-bit
-    app.kubernetes.io/version: 2.0.11
-    helm.sh/chart: fluent-bit-0.27.0
+    app.kubernetes.io/version: 2.1.2
+    helm.sh/chart: fluent-bit-0.28.0
   name: fluent-bit
   namespace: logging
 spec:
@@ -260,7 +265,7 @@ spec:
       containers:
       - env:
         - name: LISTEN
-          value: "0.0.0.0"
+          value: 0.0.0.0
         - name: KUBELET_NAME
           valueFrom:
             fieldRef:
@@ -279,7 +284,7 @@ spec:
             configMapKeyRef:
               key: cluster.location
               name: clusterconfig
-        image: cr.fluentbit.io/fluent/fluent-bit:2.1.1
+        image: cr.fluentbit.io/fluent/fluent-bit:2.1.2
         imagePullPolicy: IfNotPresent
         livenessProbe:
           httpGet:
@@ -360,8 +365,8 @@ metadata:
     app.kubernetes.io/instance: fluent-bit
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: fluent-bit
-    app.kubernetes.io/version: 2.0.11
-    helm.sh/chart: fluent-bit-0.27.0
+    app.kubernetes.io/version: 2.1.2
+    helm.sh/chart: fluent-bit-0.28.0
   name: fluent-bit-controlplane
   namespace: logging
 spec:
@@ -383,7 +388,7 @@ spec:
       containers:
       - env:
         - name: LISTEN
-          value: "127.0.0.1"
+          value: 127.0.0.1
         - name: KUBELET_NAME
           valueFrom:
             fieldRef:
@@ -402,7 +407,7 @@ spec:
             configMapKeyRef:
               key: cluster.location
               name: clusterconfig
-        image: cr.fluentbit.io/fluent/fluent-bit:2.1.1
+        image: cr.fluentbit.io/fluent/fluent-bit:2.1.2
         imagePullPolicy: IfNotPresent
         livenessProbe:
           httpGet:

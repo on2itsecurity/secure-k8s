@@ -833,7 +833,7 @@ spec:
               command:
               - "/cni-install.sh"
               - "--enable-debug=false"
-              - "--cni-exclusive=true"
+              - "--cni-exclusive=false"
               - "--log-file=/var/run/cilium/cilium-cni.log"
           preStop:
             exec:
@@ -956,10 +956,9 @@ spec:
         kubernetes.io/os: linux
       tolerations:
         - effect: NoSchedule
-          key: node.cloudprovider.kubernetes.io/uninitialized
-          value: "true"
-        - effect: NoSchedule
           key: node.kubernetes.io/not-ready
+        - effect: NoSchedule
+          key: node.kubernetes.io/unschedulable
       volumes:
         # To keep state between restarts / upgrades
       - name: cilium-run
@@ -1116,9 +1115,6 @@ spec:
       nodeSelector:
         kubernetes.io/os: linux
       tolerations:
-        - effect: NoSchedule
-          key: node.cloudprovider.kubernetes.io/uninitialized
-          value: "true"
         - effect: NoSchedule
           key: node.kubernetes.io/not-ready
       volumes:

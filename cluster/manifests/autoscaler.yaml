@@ -295,6 +295,7 @@ spec:
           imagePullPolicy: "IfNotPresent"
           command:
             - ./cluster-autoscaler
+            - --address=127.0.0.1:8085
             - --cloud-provider=gce
             - --namespace=kube-system
             - --node-group-auto-discovery=mig:namePrefix=igm-$(CLUSTERNAME),min=2,max=84
@@ -309,6 +310,13 @@ spec:
             - --stderrthreshold=info
             - --v=2
           env:
+            - name: KUBERNETES_SERVICE_HOST
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: status.hostIP
+            - name: KUBERNETES_SERVICE_PORT
+              value: "6443"
             - name: CLUSTERNAME
               valueFrom:
                 configMapKeyRef:
@@ -317,6 +325,7 @@ spec:
           livenessProbe:
             httpGet:
               path: /health-check
+              host: 127.0.0.1
               port: 8085
           ports:
             - containerPort: 8085
@@ -342,7 +351,7 @@ spec:
       topologySpreadConstraints:
         - labelSelector:
             matchLabels:
-              app.kubernetes.io/instance: cluster-autoscaler
+              app.kubernetes.io/instance: autoscaler
           maxSkew: 1
           topologyKey: topology.kubernetes.io/zone
           whenUnsatisfiable: DoNotSchedule

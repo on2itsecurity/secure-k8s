@@ -259,7 +259,7 @@ spec:
           type: RuntimeDefault
         runAsUser: 65521
         runAsNonRoot: true
-      priorityClassName: system-node-critical
+      priorityClassName: system-cluster-critical
       hostNetwork: true
       serviceAccountName: cloud-controller-manager
       containers:
@@ -280,6 +280,13 @@ spec:
             - --controllers=*,-gkenetworkparamset
             - -v=2
           env:
+            - name: KUBERNETES_SERVICE_HOST
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: status.hostIP
+            - name: KUBERNETES_SERVICE_PORT
+              value: "6443"
             - name: CLUSTERCIDR
               valueFrom:
                 configMapKeyRef:
