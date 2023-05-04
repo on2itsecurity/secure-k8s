@@ -496,9 +496,28 @@ spec:
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  name: ingress
+  name: ingress-egress
   namespace: logging
 spec:
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        io.kubernetes.pod.namespace: kube-system
+        k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+  - toEntities:
+    - host
+    toPorts:
+    - ports:
+      - port: "10250"
+  - toEntities:
+    - world
+    toPorts:
+    - ports:
+      - port: "443"
   endpointSelector: {}
   ingress:
   - fromEndpoints:
