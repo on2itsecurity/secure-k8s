@@ -214,6 +214,7 @@ data:
   enable-health-check-nodeport: "false"
   node-port-bind-protection: "true"
   enable-auto-protect-node-port-range: "true"
+  enable-service-topology: "true"
   enable-svc-source-range-check: "true"
   enable-l2-neigh-discovery: "true"
   arping-refresh-period: "30s"

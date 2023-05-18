@@ -264,7 +264,7 @@ spec:
       serviceAccountName: cloud-controller-manager
       containers:
         - name: cloud-controller-manager
-          image: ghcr.io/on2itsecurity/cloud-provider-gcp/cloud-controller-manager:v1.26.2-alpha_1a9ef617cdca901e56b388bd1ef2fe922b1248ad
+          image: registry.k8s.io/cloud-provider-gcp/cloud-controller-manager:v26.2.4@sha256:e70becd7b8cc50a3ac80f36ad0db8781742a225563e759897f846ac728da87db
           resources:
             requests:
               cpu: 50m
@@ -300,6 +300,12 @@ spec:
               scheme: HTTPS
             initialDelaySeconds: 15
             timeoutSeconds: 15
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
           volumeMounts:
             - name: varlibetc
               mountPath: /etc/gce.conf
