@@ -295,7 +295,7 @@ spec:
           imagePullPolicy: "IfNotPresent"
           command:
             - ./cluster-autoscaler
-            - --address=127.0.0.1:8085
+            - --address=0.0.0.0:8085
             - --cloud-provider=gce
             - --namespace=kube-system
             - --node-group-auto-discovery=mig:namePrefix=igm-$(CLUSTERNAME),min=1,max=84
@@ -326,7 +326,6 @@ spec:
           livenessProbe:
             httpGet:
               path: /health-check
-              host: 127.0.0.1
               port: 8085
           ports:
             - containerPort: 8085
