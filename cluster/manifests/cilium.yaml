@@ -960,6 +960,12 @@ spec:
           key: node.kubernetes.io/not-ready
         - effect: NoSchedule
           key: node.kubernetes.io/unschedulable
+        - effect: PreferNoSchedule
+          key: DeletionCandidateOfClusterAutoscaler
+        - effect: NoSchedule
+          key: ToBeDeletedByClusterAutoscaler
+        - effect: NoExecute
+          key: node.kubernetes.io/not-ready
       volumes:
         # To keep state between restarts / upgrades
       - name: cilium-run
