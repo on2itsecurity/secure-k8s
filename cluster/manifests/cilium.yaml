@@ -467,7 +467,7 @@ data:
   enable-ipv6-big-tcp: "false"
   enable-ipv6-masquerade: "false"
   enable-k8s-terminating-endpoint: "true"
-  enable-l2-neigh-discovery: "true"
+  enable-l2-neigh-discovery: "false"
   enable-l7-proxy: "false"
   enable-local-redirect-policy: "false"
   enable-metrics: "true"
