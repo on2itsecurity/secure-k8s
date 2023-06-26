@@ -273,6 +273,7 @@ spec:
           args:
             - --allocate-node-cidrs=true
             - --bind-address=127.0.0.1
+            - --cluster-name=$(CLUSTERNAME)
             - --cluster-cidr=$(CLUSTERCIDR)
             - --cloud-provider=gce
             - --cloud-config=/etc/gce.conf
@@ -292,6 +293,11 @@ spec:
                 configMapKeyRef:
                   name: clusterconfig
                   key: cluster.podcidr
+            - name: CLUSTERNAME
+              valueFrom:
+                configMapKeyRef:
+                  name: clusterconfig
+                  key: cluster.name
           livenessProbe:
             httpGet:
               host: 127.0.0.1
