@@ -453,7 +453,7 @@ data:
   enable-bandwidth-manager: "true"
   enable-bbr: "true"
   enable-bgp-control-plane: "false"
-  enable-bpf-clock-probe: "true"
+  enable-bpf-clock-probe: "false"
   enable-bpf-masquerade: "false"
   enable-endpoint-health-checking: "true"
   enable-health-check-nodeport: "true"
