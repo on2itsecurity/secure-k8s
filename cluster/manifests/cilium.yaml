@@ -1044,18 +1044,13 @@ spec:
           name: tmp
         - mountPath: /sys/fs/bpf
           name: cilium-bpf
+          readOnly: false
       hostNetwork: true
       initContainers:
       - command:
         - cilium
         - build-config
         env:
-        - name: KUBERNETES_SERVICE_HOST
-          value: localhost
-          valueFrom:
-            configMapKeyRef:
-              key: cluster.vip
-              name: clusterconfig
         - name: K8S_NODE_NAME
           valueFrom:
             fieldRef:
@@ -1066,6 +1061,8 @@ spec:
             fieldRef:
               apiVersion: v1
               fieldPath: metadata.namespace
+        - name: KUBERNETES_SERVICE_HOST
+          value: localhost
         - name: KUBERNETES_SERVICE_PORT
           value: "7445"
         image: us.gcr.io/prod-usa/cilium/cilium:1.14.1-fix-gcp-ilb-hc
@@ -1146,6 +1143,12 @@ spec:
         key: ToBeDeletedByClusterAutoscaler
       - effect: NoExecute
         key: node.kubernetes.io/not-ready
+      - effect: NoSchedule
+        key: node.cilium.io/agent-not-ready
+      - effect: NoExecute
+        key: node.kubernetes.io/out-of-service
+      - effect: NoSchedule
+        key: node.cloudprovider.kubernetes.io/shutdown
       volumes:
       - emptyDir: {}
         name: tmp
