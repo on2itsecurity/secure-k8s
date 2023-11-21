@@ -514,7 +514,7 @@ data:
   ipv4-native-routing-cidr: 0.0.0.0/0
   k8s-client-burst: "10"
   k8s-client-qps: "5"
-  kube-proxy-replacement: strict
+  kube-proxy-replacement: "true"
   kube-proxy-replacement-healthz-bind-address: ""
   mesh-auth-enabled: "true"
   mesh-auth-gc-interval: 5m0s
@@ -719,7 +719,7 @@ spec:
           value: localhost
         - name: KUBERNETES_SERVICE_PORT
           value: "7445"
-        image: quay.io/cilium/operator-generic:v1.14.1@sha256:e061de0a930534c7e3f8feda8330976367971238ccafff42659f104effd4b5f7
+        image: quay.io/cilium/operator-generic:v1.14.4@sha256:f0f05e4ba3bb1fe0e4b91144fa4fea637701aba02e6c00b23bd03b4a7e1dfd55
         imagePullPolicy: IfNotPresent
         livenessProbe:
           httpGet:
@@ -805,7 +805,7 @@ spec:
         - serve
         command:
         - hubble-relay
-        image: quay.io/cilium/hubble-relay:v1.14.1@sha256:db30e85a7abc10589ce2a97d61ee18696a03dc5ea04d44b4d836d88bd75b59d8
+        image: quay.io/cilium/hubble-relay:v1.14.4@sha256:ca81622fd9f04c1316bf4144bde5dbce613758810f6022f6c706b14c9c0815db
         imagePullPolicy: IfNotPresent
         livenessProbe:
           tcpSocket:
@@ -893,7 +893,7 @@ spec:
             - --hubble-relay-client-cert-validity-duration=94608000s
             command:
             - /usr/bin/cilium-certgen
-            image: quay.io/cilium/certgen:v0.1.8@sha256:4a456552a5f192992a6edcec2febb1c54870d665173a33dc7d876129b199ddbd
+            image: quay.io/cilium/certgen:v0.1.9@sha256:89a0847753686444daabde9474b48340993bd19c7bea66a46e45b2974b82041f
             imagePullPolicy: IfNotPresent
             name: certgen
           hostNetwork: true
@@ -956,9 +956,34 @@ spec:
           value: localhost
         - name: KUBERNETES_SERVICE_PORT
           value: "7445"
-        image: us.gcr.io/prod-usa/cilium/cilium:1.14.1-fix-gcp-ilb-hc
+        image: us.gcr.io/prod-usa/cilium/cilium:1.14.4-fix-gcp-ilb-hc
         imagePullPolicy: IfNotPresent
         lifecycle:
+          postStart:
+            exec:
+              command:
+              - bash
+              - -c
+              - |
+                set -o errexit
+                set -o pipefail
+                set -o nounset
+
+                # When running in AWS ENI mode, it's likely that 'aws-node' has
+                # had a chance to install SNAT iptables rules. These can result
+                # in dropped traffic, so we should attempt to remove them.
+                # We do it using a 'postStart' hook since this may need to run
+                # for nodes which might have already been init'ed but may still
+                # have dangling rules. This is safe because there are no
+                # dependencies on anything that is part of the startup script
+                # itself, and can be safely run multiple times per node (e.g. in
+                # case of a restart).
+                if [[ "$(iptables-save | grep -c 'AWS-SNAT-CHAIN|AWS-CONNMARK-CHAIN')" != "0" ]];
+                then
+                    echo 'Deleting iptables rules created by the AWS CNI VPC plugin'
+                    iptables-save | grep -v 'AWS-SNAT-CHAIN|AWS-CONNMARK-CHAIN' | iptables-restore
+                fi
+                echo 'Done!'
           preStop:
             exec:
               command:
@@ -1065,7 +1090,7 @@ spec:
           value: localhost
         - name: KUBERNETES_SERVICE_PORT
           value: "7445"
-        image: us.gcr.io/prod-usa/cilium/cilium:1.14.1-fix-gcp-ilb-hc
+        image: us.gcr.io/prod-usa/cilium/cilium:1.14.4-fix-gcp-ilb-hc
         imagePullPolicy: IfNotPresent
         name: config
         terminationMessagePolicy: FallbackToLogsOnError
@@ -1091,7 +1116,7 @@ spec:
           value: localhost
         - name: KUBERNETES_SERVICE_PORT
           value: "7445"
-        image: us.gcr.io/prod-usa/cilium/cilium:1.14.1-fix-gcp-ilb-hc
+        image: us.gcr.io/prod-usa/cilium/cilium:1.14.4-fix-gcp-ilb-hc
         imagePullPolicy: IfNotPresent
         name: clean-cilium-state
         resources:
@@ -1109,7 +1134,7 @@ spec:
           name: cilium-run
       - command:
         - /install-plugin.sh
-        image: us.gcr.io/prod-usa/cilium/cilium:1.14.1-fix-gcp-ilb-hc
+        image: us.gcr.io/prod-usa/cilium/cilium:1.14.4-fix-gcp-ilb-hc
         imagePullPolicy: IfNotPresent
         name: install-cni-binaries
         resources:
@@ -1245,7 +1270,7 @@ spec:
         - --hubble-relay-client-cert-validity-duration=94608000s
         command:
         - /usr/bin/cilium-certgen
-        image: quay.io/cilium/certgen:v0.1.8@sha256:4a456552a5f192992a6edcec2febb1c54870d665173a33dc7d876129b199ddbd
+        image: quay.io/cilium/certgen:v0.1.9@sha256:89a0847753686444daabde9474b48340993bd19c7bea66a46e45b2974b82041f
         imagePullPolicy: IfNotPresent
         name: certgen
       hostNetwork: true
