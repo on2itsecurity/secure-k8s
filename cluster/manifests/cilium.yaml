@@ -471,6 +471,7 @@ data:
   enable-bpf-clock-probe: "false"
   enable-bpf-masquerade: "false"
   enable-endpoint-health-checking: "true"
+  enable-health-check-loadbalancer-ip: "true"
   enable-health-check-nodeport: "true"
   enable-health-checking: "true"
   enable-hubble: "true"
