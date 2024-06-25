@@ -264,7 +264,7 @@ spec:
       serviceAccountName: cloud-controller-manager
       containers:
         - name: cloud-controller-manager
-          image: registry.k8s.io/cloud-provider-gcp/cloud-controller-manager:v26.2.4@sha256:e70becd7b8cc50a3ac80f36ad0db8781742a225563e759897f846ac728da87db
+          image: registry.k8s.io/cloud-provider-gcp/cloud-controller-manager:v29.0.0
           resources:
             requests:
               cpu: 50m
@@ -282,12 +282,9 @@ spec:
             - -v=2
           env:
             - name: KUBERNETES_SERVICE_HOST
-              valueFrom:
-                fieldRef:
-                  apiVersion: v1
-                  fieldPath: status.hostIP
+              value: "127.0.0.1"
             - name: KUBERNETES_SERVICE_PORT
-              value: "6443"
+              value: "7445"
             - name: CLUSTERCIDR
               valueFrom:
                 configMapKeyRef:

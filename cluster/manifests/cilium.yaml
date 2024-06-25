@@ -551,9 +551,12 @@ data:
   preallocate-bpf-maps: "false"
   prometheus-serve-addr: :9962
   proxy-connect-timeout: "2"
+  proxy-idle-timeout-seconds: "60"
   proxy-max-connection-duration-seconds: "0"
   proxy-max-requests-per-connection: "0"
   proxy-prometheus-port: "9964"
+  proxy-xff-num-trusted-hops-egress: "0"
+  proxy-xff-num-trusted-hops-ingress: "0"
   remove-cilium-node-taints: "true"
   routing-mode: native
   service-no-backend-response: reject
@@ -741,7 +744,7 @@ spec:
           value: 127.0.0.1
         - name: KUBERNETES_SERVICE_PORT
           value: "7445"
-        image: quay.io/cilium/operator-generic:v1.15.0@sha256:e26ecd316e742e4c8aa1e302ba8b577c2d37d114583d6c4cdd2b638493546a79
+        image: quay.io/cilium/operator-generic:v1.15.6@sha256:5789f0935eef96ad571e4f5565a8800d3a8fbb05265cf6909300cd82fd513c3d
         imagePullPolicy: IfNotPresent
         livenessProbe:
           httpGet:
@@ -827,7 +830,7 @@ spec:
         - serve
         command:
         - hubble-relay
-        image: quay.io/cilium/hubble-relay:v1.15.0@sha256:45b3ea70b73aee01644f800b8f6138c36446bfb130d2b88b0f75775ebe6a9ab6
+        image: quay.io/cilium/hubble-relay:v1.15.6@sha256:a0863dd70d081b273b87b9b7ce7e2d3f99171c2f5e202cd57bc6691e51283e0c
         imagePullPolicy: IfNotPresent
         livenessProbe:
           grpc:
@@ -924,7 +927,7 @@ spec:
             - --hubble-relay-client-cert-validity-duration=94608000s
             command:
             - /usr/bin/cilium-certgen
-            image: quay.io/cilium/certgen:v0.1.9@sha256:89a0847753686444daabde9474b48340993bd19c7bea66a46e45b2974b82041f
+            image: quay.io/cilium/certgen:v0.1.12@sha256:bbc5e65e9dc65bc6b58967fe536b7f3b54e12332908aeb0a96a36866b4372b4e
             imagePullPolicy: IfNotPresent
             name: certgen
           hostNetwork: true
@@ -986,39 +989,15 @@ spec:
         - name: GOMEMLIMIT
           valueFrom:
             resourceFieldRef:
+              divisor: "1"
               resource: limits.memory
         - name: KUBERNETES_SERVICE_HOST
           value: 127.0.0.1
         - name: KUBERNETES_SERVICE_PORT
           value: "7445"
-        image: quay.io/cilium/cilium:v1.15.0@sha256:9cfd6a0a3a964780e73a11159f93cc363e616f7d9783608f62af6cfdf3759619
+        image: quay.io/cilium/cilium:v1.15.6@sha256:6aa840986a3a9722cd967ef63248d675a87add7e1704740902d5d3162f0c0def
         imagePullPolicy: IfNotPresent
         lifecycle:
-          postStart:
-            exec:
-              command:
-              - bash
-              - -c
-              - |
-                set -o errexit
-                set -o pipefail
-                set -o nounset
-
-                # When running in AWS ENI mode, it's likely that 'aws-node' has
-                # had a chance to install SNAT iptables rules. These can result
-                # in dropped traffic, so we should attempt to remove them.
-                # We do it using a 'postStart' hook since this may need to run
-                # for nodes which might have already been init'ed but may still
-                # have dangling rules. This is safe because there are no
-                # dependencies on anything that is part of the startup script
-                # itself, and can be safely run multiple times per node (e.g. in
-                # case of a restart).
-                if [[ "$(iptables-save | grep -E -c 'AWS-SNAT-CHAIN|AWS-CONNMARK-CHAIN')" != "0" ]];
-                then
-                    echo 'Deleting iptables rules created by the AWS CNI VPC plugin'
-                    iptables-save | grep -E -v 'AWS-SNAT-CHAIN|AWS-CONNMARK-CHAIN' | iptables-restore
-                fi
-                echo 'Done!'
           preStop:
             exec:
               command:
@@ -1126,7 +1105,7 @@ spec:
           value: 127.0.0.1
         - name: KUBERNETES_SERVICE_PORT
           value: "7445"
-        image: quay.io/cilium/cilium:v1.15.0@sha256:9cfd6a0a3a964780e73a11159f93cc363e616f7d9783608f62af6cfdf3759619
+        image: quay.io/cilium/cilium:v1.15.6@sha256:6aa840986a3a9722cd967ef63248d675a87add7e1704740902d5d3162f0c0def
         imagePullPolicy: IfNotPresent
         name: config
         terminationMessagePolicy: FallbackToLogsOnError
@@ -1158,7 +1137,7 @@ spec:
           value: 127.0.0.1
         - name: KUBERNETES_SERVICE_PORT
           value: "7445"
-        image: quay.io/cilium/cilium:v1.15.0@sha256:9cfd6a0a3a964780e73a11159f93cc363e616f7d9783608f62af6cfdf3759619
+        image: quay.io/cilium/cilium:v1.15.6@sha256:6aa840986a3a9722cd967ef63248d675a87add7e1704740902d5d3162f0c0def
         imagePullPolicy: IfNotPresent
         name: clean-cilium-state
         securityContext:
@@ -1172,7 +1151,7 @@ spec:
           name: cilium-run
       - command:
         - /install-plugin.sh
-        image: quay.io/cilium/cilium:v1.15.0@sha256:9cfd6a0a3a964780e73a11159f93cc363e616f7d9783608f62af6cfdf3759619
+        image: quay.io/cilium/cilium:v1.15.6@sha256:6aa840986a3a9722cd967ef63248d675a87add7e1704740902d5d3162f0c0def
         imagePullPolicy: IfNotPresent
         name: install-cni-binaries
         resources:
@@ -1309,7 +1288,7 @@ spec:
         - --hubble-relay-client-cert-validity-duration=94608000s
         command:
         - /usr/bin/cilium-certgen
-        image: quay.io/cilium/certgen:v0.1.9@sha256:89a0847753686444daabde9474b48340993bd19c7bea66a46e45b2974b82041f
+        image: quay.io/cilium/certgen:v0.1.12@sha256:bbc5e65e9dc65bc6b58967fe536b7f3b54e12332908aeb0a96a36866b4372b4e
         imagePullPolicy: IfNotPresent
         name: certgen
       hostNetwork: true
