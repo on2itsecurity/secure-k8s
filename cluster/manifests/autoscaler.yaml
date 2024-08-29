@@ -295,7 +295,7 @@ spec:
       dnsPolicy: "ClusterFirst"
       containers:
         - name: gce-cluster-autoscaler
-          image: "registry.k8s.io/autoscaling/cluster-autoscaler:v1.29.3"
+          image: "registry.k8s.io/autoscaling/cluster-autoscaler:v1.30.2"
           imagePullPolicy: "IfNotPresent"
           command:
             - ./cluster-autoscaler

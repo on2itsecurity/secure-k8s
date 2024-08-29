@@ -478,6 +478,7 @@ data:
   debug-verbose: ""
   direct-routing-device: eth0
   dnsproxy-enable-transparent-mode: "false"
+  dnsproxy-socket-linger-timeout: "10"
   egress-gateway-reconciliation-trigger-interval: 1s
   enable-auto-protect-node-port-range: "true"
   enable-bandwidth-manager: "true"
@@ -744,7 +745,7 @@ spec:
           value: 127.0.0.1
         - name: KUBERNETES_SERVICE_PORT
           value: "7445"
-        image: quay.io/cilium/operator-generic:v1.15.6@sha256:5789f0935eef96ad571e4f5565a8800d3a8fbb05265cf6909300cd82fd513c3d
+        image: quay.io/cilium/operator-generic:v1.15.8@sha256:e77ae6fc8a978f98363cf74d3c883dfaa6454c6e23ec417a60952f29408e2f18
         imagePullPolicy: IfNotPresent
         livenessProbe:
           httpGet:
@@ -781,7 +782,6 @@ spec:
         kubernetes.io/os: linux
       priorityClassName: system-cluster-critical
       restartPolicy: Always
-      serviceAccount: cilium-operator
       serviceAccountName: cilium-operator
       tolerations:
       - effect: NoSchedule
@@ -830,12 +830,15 @@ spec:
         - serve
         command:
         - hubble-relay
-        image: quay.io/cilium/hubble-relay:v1.15.6@sha256:a0863dd70d081b273b87b9b7ce7e2d3f99171c2f5e202cd57bc6691e51283e0c
+        image: quay.io/cilium/hubble-relay:v1.15.8@sha256:47e8a19f60d0d226ec3d2c675ec63908f1f2fb936a39897f2e3255b3bab01ad6
         imagePullPolicy: IfNotPresent
         livenessProbe:
+          failureThreshold: 12
           grpc:
             port: 4222
-          timeoutSeconds: 3
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 10
         name: hubble-relay
         ports:
         - containerPort: 4245
@@ -855,8 +858,8 @@ spec:
           failureThreshold: 20
           grpc:
             port: 4222
+          initialDelaySeconds: 10
           periodSeconds: 3
-          timeoutSeconds: 3
         terminationMessagePolicy: FallbackToLogsOnError
         volumeMounts:
         - mountPath: /etc/hubble-relay
@@ -871,7 +874,6 @@ spec:
       restartPolicy: Always
       securityContext:
         fsGroup: 65532
-      serviceAccount: hubble-relay
       serviceAccountName: hubble-relay
       terminationGracePeriodSeconds: 1
       volumes:
@@ -927,7 +929,7 @@ spec:
             - --hubble-relay-client-cert-validity-duration=94608000s
             command:
             - /usr/bin/cilium-certgen
-            image: quay.io/cilium/certgen:v0.1.12@sha256:bbc5e65e9dc65bc6b58967fe536b7f3b54e12332908aeb0a96a36866b4372b4e
+            image: quay.io/cilium/certgen:v0.1.14@sha256:40cdac65aa6ee86c16ce107f8726c4b55ce6654d07bbdf490db6bd492587bf54
             imagePullPolicy: IfNotPresent
             name: certgen
           hostNetwork: true
@@ -995,7 +997,7 @@ spec:
           value: 127.0.0.1
         - name: KUBERNETES_SERVICE_PORT
           value: "7445"
-        image: quay.io/cilium/cilium:v1.15.6@sha256:6aa840986a3a9722cd967ef63248d675a87add7e1704740902d5d3162f0c0def
+        image: quay.io/cilium/cilium:v1.15.8@sha256:3b5b0477f696502c449eaddff30019a7d399f077b7814bcafabc636829d194c7
         imagePullPolicy: IfNotPresent
         lifecycle:
           preStop:
@@ -1105,13 +1107,34 @@ spec:
           value: 127.0.0.1
         - name: KUBERNETES_SERVICE_PORT
           value: "7445"
-        image: quay.io/cilium/cilium:v1.15.6@sha256:6aa840986a3a9722cd967ef63248d675a87add7e1704740902d5d3162f0c0def
+        image: quay.io/cilium/cilium:v1.15.8@sha256:3b5b0477f696502c449eaddff30019a7d399f077b7814bcafabc636829d194c7
         imagePullPolicy: IfNotPresent
         name: config
         terminationMessagePolicy: FallbackToLogsOnError
         volumeMounts:
         - mountPath: /tmp
           name: tmp
+      - command:
+        - sh
+        - -ec
+        - |
+          cp /usr/bin/cilium-sysctlfix /hostbin/cilium-sysctlfix;
+          nsenter --mount=/hostproc/1/ns/mnt "${BIN_PATH}/cilium-sysctlfix";
+          rm /hostbin/cilium-sysctlfix
+        env:
+        - name: BIN_PATH
+          value: /opt/cni/bin
+        image: quay.io/cilium/cilium:v1.15.8@sha256:3b5b0477f696502c449eaddff30019a7d399f077b7814bcafabc636829d194c7
+        imagePullPolicy: IfNotPresent
+        name: apply-sysctl-overwrites
+        securityContext:
+          privileged: true
+        terminationMessagePolicy: FallbackToLogsOnError
+        volumeMounts:
+        - mountPath: /hostproc
+          name: hostproc
+        - mountPath: /hostbin
+          name: cni-path
       - command:
         - /init-container.sh
         env:
@@ -1137,7 +1160,7 @@ spec:
           value: 127.0.0.1
         - name: KUBERNETES_SERVICE_PORT
           value: "7445"
-        image: quay.io/cilium/cilium:v1.15.6@sha256:6aa840986a3a9722cd967ef63248d675a87add7e1704740902d5d3162f0c0def
+        image: quay.io/cilium/cilium:v1.15.8@sha256:3b5b0477f696502c449eaddff30019a7d399f077b7814bcafabc636829d194c7
         imagePullPolicy: IfNotPresent
         name: clean-cilium-state
         securityContext:
@@ -1151,7 +1174,7 @@ spec:
           name: cilium-run
       - command:
         - /install-plugin.sh
-        image: quay.io/cilium/cilium:v1.15.6@sha256:6aa840986a3a9722cd967ef63248d675a87add7e1704740902d5d3162f0c0def
+        image: quay.io/cilium/cilium:v1.15.8@sha256:3b5b0477f696502c449eaddff30019a7d399f077b7814bcafabc636829d194c7
         imagePullPolicy: IfNotPresent
         name: install-cni-binaries
         resources:
@@ -1171,7 +1194,9 @@ spec:
         kubernetes.io/os: linux
       priorityClassName: system-node-critical
       restartPolicy: Always
-      serviceAccount: cilium
+      securityContext:
+        appArmorProfile:
+          type: Unconfined
       serviceAccountName: cilium
       terminationGracePeriodSeconds: 1
       tolerations:
@@ -1198,6 +1223,10 @@ spec:
           path: /var/run/cilium
           type: DirectoryOrCreate
         name: cilium-run
+      - hostPath:
+          path: /proc
+          type: Directory
+        name: hostproc
       - hostPath:
           path: /sys/fs/cgroup
           type: DirectoryOrCreate
@@ -1288,7 +1317,7 @@ spec:
         - --hubble-relay-client-cert-validity-duration=94608000s
         command:
         - /usr/bin/cilium-certgen
-        image: quay.io/cilium/certgen:v0.1.12@sha256:bbc5e65e9dc65bc6b58967fe536b7f3b54e12332908aeb0a96a36866b4372b4e
+        image: quay.io/cilium/certgen:v0.1.14@sha256:40cdac65aa6ee86c16ce107f8726c4b55ce6654d07bbdf490db6bd492587bf54
         imagePullPolicy: IfNotPresent
         name: certgen
       hostNetwork: true
