@@ -116,7 +116,7 @@ spec:
       - command:
         - /server
         - --inifile=/secrets/env.ini
-        image: ghcr.io/on2itsecurity/noc-k8slabels-v1:latest@sha256:1c5d043ea582772fc11919e042d501b28b6c8884970f10e0be773122fb537c3d
+        image: ghcr.io/on2itsecurity/noc-k8slabels-v1:latest@sha256:2e90cb79e4b0bdb8480ba312b516a68bc8199a68eff6f34fe32edf46cbf67718
         name: noc-k8slables-v1
         resources:
           limits:

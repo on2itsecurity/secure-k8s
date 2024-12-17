@@ -26,6 +26,7 @@ metadata:
   namespace: cilium
 ---
 apiVersion: v1
+automountServiceAccountToken: false
 kind: ServiceAccount
 metadata:
   name: hubble-relay
@@ -47,6 +48,42 @@ rules:
   - get
   - list
   - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  labels:
+    app.kubernetes.io/part-of: cilium
+  name: hubble-generate-certs
+  namespace: cilium
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - create
+- apiGroups:
+  - ""
+  resourceNames:
+  - hubble-server-certs
+  - hubble-relay-client-certs
+  - hubble-relay-server-certs
+  - hubble-metrics-server-certs
+  - hubble-ui-client-certs
+  resources:
+  - secrets
+  verbs:
+  - update
+- apiGroups:
+  - ""
+  resourceNames:
+  - cilium-ca
+  resources:
+  - secrets
+  verbs:
+  - get
+  - update
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -148,8 +185,6 @@ rules:
 - apiGroups:
   - cilium.io
   resources:
-  - ciliumnetworkpolicies/status
-  - ciliumclusterwidenetworkpolicies/status
   - ciliumendpoints/status
   - ciliumendpoints
   - ciliuml2announcementpolicies/status
@@ -173,6 +208,14 @@ rules:
   - list
   - watch
   - delete
+- apiGroups:
+  - ""
+  resourceNames:
+  - cilium-config
+  resources:
+  - configmaps
+  verbs:
+  - patch
 - apiGroups:
   - ""
   resources:
@@ -331,6 +374,7 @@ rules:
   resources:
   - ciliumloadbalancerippools
   - ciliumpodippools
+  - ciliumbgppeeringpolicies
   - ciliumbgpclusterconfigs
   - ciliumbgpnodeconfigoverrides
   verbs:
@@ -359,39 +403,6 @@ rules:
   - update
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  labels:
-    app.kubernetes.io/part-of: cilium
-  name: hubble-generate-certs
-rules:
-- apiGroups:
-  - ""
-  resources:
-  - secrets
-  verbs:
-  - create
-- apiGroups:
-  - ""
-  resourceNames:
-  - hubble-server-certs
-  - hubble-relay-client-certs
-  - hubble-relay-server-certs
-  resources:
-  - secrets
-  verbs:
-  - update
-- apiGroups:
-  - ""
-  resourceNames:
-  - cilium-ca
-  resources:
-  - secrets
-  verbs:
-  - get
-  - update
----
-apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   labels:
@@ -408,6 +419,22 @@ subjects:
   namespace: cilium
 ---
 apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/part-of: cilium
+  name: hubble-generate-certs
+  namespace: cilium
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: hubble-generate-certs
+subjects:
+- kind: ServiceAccount
+  name: hubble-generate-certs
+  namespace: cilium
+---
+apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   labels:
@@ -435,21 +462,6 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: cilium-operator
-  namespace: cilium
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  labels:
-    app.kubernetes.io/part-of: cilium
-  name: hubble-generate-certs
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: hubble-generate-certs
-subjects:
-- kind: ServiceAccount
-  name: hubble-generate-certs
   namespace: cilium
 ---
 apiVersion: v1
@@ -457,12 +469,16 @@ data:
   agent-not-ready-taint-key: node.cilium.io/agent-not-ready
   arping-refresh-period: 30s
   auto-direct-node-routes: "false"
+  bpf-events-drop-enabled: "true"
+  bpf-events-policy-verdict-enabled: "true"
+  bpf-events-trace-enabled: "true"
   bpf-lb-acceleration: disabled
   bpf-lb-external-clusterip: "false"
   bpf-lb-map-max: "65536"
   bpf-lb-mode: dsr
   bpf-lb-sock: "false"
   bpf-lb-sock-hostns-only: "true"
+  bpf-lb-sock-terminate-pod-connections: "false"
   bpf-map-dynamic-size-ratio: "0.0025"
   bpf-policy-map-max: "16384"
   bpf-root: /sys/fs/bpf
@@ -470,20 +486,23 @@ data:
   cilium-endpoint-gc-interval: 5m0s
   cluster-id: "0"
   cluster-name: default
+  clustermesh-enable-endpoint-sync: "false"
+  clustermesh-enable-mcs-api: "false"
   cni-exclusive: "false"
   cni-log-file: /var/run/cilium/cilium-cni.log
   controller-group-metrics: write-cni-file sync-host-ips sync-lb-maps-with-k8s-services
   custom-cni-conf: "false"
+  datapath-mode: veth
   debug: "false"
   debug-verbose: ""
   direct-routing-device: eth0
+  direct-routing-skip-unreachable: "false"
   dnsproxy-enable-transparent-mode: "false"
   dnsproxy-socket-linger-timeout: "10"
   egress-gateway-reconciliation-trigger-interval: 1s
   enable-auto-protect-node-port-range: "true"
   enable-bandwidth-manager: "true"
   enable-bbr: "true"
-  enable-bgp-control-plane: "false"
   enable-bpf-clock-probe: "false"
   enable-bpf-masquerade: "false"
   enable-endpoint-health-checking: "true"
@@ -506,14 +525,18 @@ data:
   enable-local-redirect-policy: "false"
   enable-masquerade-to-route-source: "false"
   enable-metrics: "true"
+  enable-node-selector-labels: "false"
   enable-policy: default
-  enable-remote-node-identity: "true"
+  enable-runtime-device-detection: "true"
   enable-sctp: "false"
   enable-service-topology: "true"
   enable-svc-source-range-check: "true"
+  enable-tcx: "true"
   enable-vtep: "false"
   enable-well-known-identities: "false"
   enable-xt-socket-fallback: "false"
+  envoy-base-id: "0"
+  envoy-keep-cap-netbindservice: "false"
   external-envoy-proxy: "false"
   hubble-disable-tls: "false"
   hubble-export-file-max-backups: "5"
@@ -521,6 +544,7 @@ data:
   hubble-listen-address: :4244
   hubble-metrics: dns drop tcp flow icmp http
   hubble-metrics-server: :9965
+  hubble-metrics-server-enable-tls: "false"
   hubble-socket-path: /var/run/cilium/hubble.sock
   hubble-tls-cert-file: /var/lib/cilium/tls/hubble/server.crt
   hubble-tls-client-ca-files: /var/lib/cilium/tls/hubble/client-ca.crt
@@ -534,6 +558,8 @@ data:
   ipv4-native-routing-cidr: 0.0.0.0/0
   k8s-client-burst: "20"
   k8s-client-qps: "10"
+  k8s-require-ipv4-pod-cidr: "false"
+  k8s-require-ipv6-pod-cidr: "false"
   kube-proxy-replacement: "true"
   kube-proxy-replacement-healthz-bind-address: ""
   max-connected-clusters: "255"
@@ -544,7 +570,10 @@ data:
   monitor-aggregation: medium
   monitor-aggregation-flags: all
   monitor-aggregation-interval: 5s
+  nat-map-stats-entries: "32"
+  nat-map-stats-interval: 30s
   node-port-bind-protection: "true"
+  nodeport-addresses: ""
   nodes-gc-interval: 5m0s
   operator-api-serve-addr: 127.0.0.1:9234
   operator-prometheus-serve-addr: :9963
@@ -553,6 +582,7 @@ data:
   prometheus-serve-addr: :9962
   proxy-connect-timeout: "2"
   proxy-idle-timeout-seconds: "60"
+  proxy-initial-fetch-timeout: "30"
   proxy-max-connection-duration-seconds: "0"
   proxy-max-requests-per-connection: "0"
   proxy-prometheus-port: "9964"
@@ -563,8 +593,6 @@ data:
   service-no-backend-response: reject
   set-cilium-is-up-condition: "true"
   set-cilium-node-taints: "true"
-  sidecar-istio-proxy-image: cilium/istio_proxy
-  skip-cnp-status-startup-clean: "false"
   synchronize-k8s-nodes: "true"
   tofqdns-dns-reject-response-code: refused
   tofqdns-enable-dns-compression: "true"
@@ -588,7 +616,7 @@ data:
   config.yaml: "cluster-name: default\npeer-service: \"hubble-peer.cilium.svc.cluster.local:443\"\nlisten-address:
     :4245\ngops: true\ngops-port: \"9893\"\ndial-timeout: \nretry-timeout: \nsort-buffer-len-max:
     \nsort-buffer-drain-timeout: \ntls-hubble-client-cert-file: /var/lib/hubble-relay/tls/client.crt\ntls-hubble-client-key-file:
-    /var/lib/hubble-relay/tls/client.key\ntls-hubble-server-ca-files: /var/lib/hubble-relay/tls/hubble-server-ca.crt\ndisable-server-tls:
+    /var/lib/hubble-relay/tls/client.key\ntls-hubble-server-ca-files: /var/lib/hubble-relay/tls/hubble-server-ca.crt\n\ndisable-server-tls:
     true\n"
 kind: ConfigMap
 metadata:
@@ -673,7 +701,7 @@ spec:
   ports:
   - port: 80
     protocol: TCP
-    targetPort: 4245
+    targetPort: grpc
   selector:
     k8s-app: hubble-relay
   type: ClusterIP
@@ -745,7 +773,7 @@ spec:
           value: 127.0.0.1
         - name: KUBERNETES_SERVICE_PORT
           value: "7445"
-        image: quay.io/cilium/operator-generic:v1.15.8@sha256:e77ae6fc8a978f98363cf74d3c883dfaa6454c6e23ec417a60952f29408e2f18
+        image: quay.io/cilium/operator-generic:v1.16.4@sha256:c55a7cbe19fe0b6b28903a085334edb586a3201add9db56d2122c8485f7a51c5
         imagePullPolicy: IfNotPresent
         livenessProbe:
           httpGet:
@@ -830,7 +858,7 @@ spec:
         - serve
         command:
         - hubble-relay
-        image: quay.io/cilium/hubble-relay:v1.15.8@sha256:47e8a19f60d0d226ec3d2c675ec63908f1f2fb936a39897f2e3255b3bab01ad6
+        image: quay.io/cilium/hubble-relay:v1.16.4@sha256:fb2c7d127a1c809f6ba23c05973f3dd00f6b6a48e4aee2da95db925a4f0351d2
         imagePullPolicy: IfNotPresent
         livenessProbe:
           failureThreshold: 12
@@ -919,21 +947,51 @@ spec:
           automountServiceAccountToken: true
           containers:
           - args:
-            - --cilium-namespace=cilium
             - --ca-generate
             - --ca-reuse-secret
-            - --hubble-server-cert-generate
-            - --hubble-server-cert-common-name=*.default.hubble-grpc.cilium.io
-            - --hubble-server-cert-validity-duration=94608000s
-            - --hubble-relay-client-cert-generate
-            - --hubble-relay-client-cert-validity-duration=94608000s
+            - --ca-secret-namespace=cilium
+            - --ca-secret-name=cilium-ca
+            - --ca-common-name=Cilium CA
             command:
             - /usr/bin/cilium-certgen
-            image: quay.io/cilium/certgen:v0.1.14@sha256:40cdac65aa6ee86c16ce107f8726c4b55ce6654d07bbdf490db6bd492587bf54
+            env:
+            - name: CILIUM_CERTGEN_CONFIG
+              value: |
+                certs:
+                - name: hubble-server-certs
+                  namespace: cilium
+                  commonName: "*.default.hubble-grpc.cilium.io"
+                  hosts:
+                  - "*.default.hubble-grpc.cilium.io"
+                  usage:
+                  - signing
+                  - key encipherment
+                  - server auth
+                  - client auth
+                  validity: 8760h
+                - name: hubble-relay-client-certs
+                  namespace: cilium
+                  commonName: "*.hubble-relay.cilium.io"
+                  hosts:
+                  - "*.hubble-relay.cilium.io"
+                  usage:
+                  - signing
+                  - key encipherment
+                  - client auth
+                  validity: 8760h
+            image: quay.io/cilium/certgen:v0.2.0@sha256:169d93fd8f2f9009db3b9d5ccd37c2b753d0989e1e7cd8fe79f9160c459eef4f
             imagePullPolicy: IfNotPresent
             name: certgen
-          hostNetwork: true
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+          hostNetwork: false
           restartPolicy: OnFailure
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
           serviceAccount: hubble-generate-certs
           serviceAccountName: hubble-generate-certs
       ttlSecondsAfterFinished: 1800
@@ -997,7 +1055,7 @@ spec:
           value: 127.0.0.1
         - name: KUBERNETES_SERVICE_PORT
           value: "7445"
-        image: quay.io/cilium/cilium:v1.15.8@sha256:3b5b0477f696502c449eaddff30019a7d399f077b7814bcafabc636829d194c7
+        image: quay.io/cilium/cilium:v1.16.4@sha256:d55ec38938854133e06739b1af237932b9c4dd4e75e9b7b2ca3acc72540a44bf
         imagePullPolicy: IfNotPresent
         lifecycle:
           preStop:
@@ -1030,6 +1088,10 @@ spec:
         - containerPort: 9964
           hostPort: 9964
           name: envoy-metrics
+          protocol: TCP
+        - containerPort: 9901
+          hostPort: 9901
+          name: envoy-admin
           protocol: TCP
         - containerPort: 9965
           hostPort: 9965
@@ -1107,7 +1169,7 @@ spec:
           value: 127.0.0.1
         - name: KUBERNETES_SERVICE_PORT
           value: "7445"
-        image: quay.io/cilium/cilium:v1.15.8@sha256:3b5b0477f696502c449eaddff30019a7d399f077b7814bcafabc636829d194c7
+        image: quay.io/cilium/cilium:v1.16.4@sha256:d55ec38938854133e06739b1af237932b9c4dd4e75e9b7b2ca3acc72540a44bf
         imagePullPolicy: IfNotPresent
         name: config
         terminationMessagePolicy: FallbackToLogsOnError
@@ -1124,7 +1186,7 @@ spec:
         env:
         - name: BIN_PATH
           value: /opt/cni/bin
-        image: quay.io/cilium/cilium:v1.15.8@sha256:3b5b0477f696502c449eaddff30019a7d399f077b7814bcafabc636829d194c7
+        image: quay.io/cilium/cilium:v1.16.4@sha256:d55ec38938854133e06739b1af237932b9c4dd4e75e9b7b2ca3acc72540a44bf
         imagePullPolicy: IfNotPresent
         name: apply-sysctl-overwrites
         securityContext:
@@ -1160,7 +1222,7 @@ spec:
           value: 127.0.0.1
         - name: KUBERNETES_SERVICE_PORT
           value: "7445"
-        image: quay.io/cilium/cilium:v1.15.8@sha256:3b5b0477f696502c449eaddff30019a7d399f077b7814bcafabc636829d194c7
+        image: quay.io/cilium/cilium:v1.16.4@sha256:d55ec38938854133e06739b1af237932b9c4dd4e75e9b7b2ca3acc72540a44bf
         imagePullPolicy: IfNotPresent
         name: clean-cilium-state
         securityContext:
@@ -1174,7 +1236,7 @@ spec:
           name: cilium-run
       - command:
         - /install-plugin.sh
-        image: quay.io/cilium/cilium:v1.15.8@sha256:3b5b0477f696502c449eaddff30019a7d399f077b7814bcafabc636829d194c7
+        image: quay.io/cilium/cilium:v1.16.4@sha256:d55ec38938854133e06739b1af237932b9c4dd4e75e9b7b2ca3acc72540a44bf
         imagePullPolicy: IfNotPresent
         name: install-cni-binaries
         resources:
@@ -1263,6 +1325,16 @@ spec:
                 path: common-etcd-client-ca.crt
               name: clustermesh-apiserver-remote-cert
               optional: true
+          - secret:
+              items:
+              - key: tls.key
+                path: local-etcd-client.key
+              - key: tls.crt
+                path: local-etcd-client.crt
+              - key: ca.crt
+                path: local-etcd-client-ca.crt
+              name: clustermesh-apiserver-local-cert
+              optional: true
       - name: hubble-tls
         projected:
           defaultMode: 256
@@ -1307,21 +1379,51 @@ spec:
       automountServiceAccountToken: true
       containers:
       - args:
-        - --cilium-namespace=cilium
         - --ca-generate
         - --ca-reuse-secret
-        - --hubble-server-cert-generate
-        - --hubble-server-cert-common-name=*.default.hubble-grpc.cilium.io
-        - --hubble-server-cert-validity-duration=94608000s
-        - --hubble-relay-client-cert-generate
-        - --hubble-relay-client-cert-validity-duration=94608000s
+        - --ca-secret-namespace=cilium
+        - --ca-secret-name=cilium-ca
+        - --ca-common-name=Cilium CA
         command:
         - /usr/bin/cilium-certgen
-        image: quay.io/cilium/certgen:v0.1.14@sha256:40cdac65aa6ee86c16ce107f8726c4b55ce6654d07bbdf490db6bd492587bf54
+        env:
+        - name: CILIUM_CERTGEN_CONFIG
+          value: |
+            certs:
+            - name: hubble-server-certs
+              namespace: cilium
+              commonName: "*.default.hubble-grpc.cilium.io"
+              hosts:
+              - "*.default.hubble-grpc.cilium.io"
+              usage:
+              - signing
+              - key encipherment
+              - server auth
+              - client auth
+              validity: 8760h
+            - name: hubble-relay-client-certs
+              namespace: cilium
+              commonName: "*.hubble-relay.cilium.io"
+              hosts:
+              - "*.hubble-relay.cilium.io"
+              usage:
+              - signing
+              - key encipherment
+              - client auth
+              validity: 8760h
+        image: quay.io/cilium/certgen:v0.2.0@sha256:169d93fd8f2f9009db3b9d5ccd37c2b753d0989e1e7cd8fe79f9160c459eef4f
         imagePullPolicy: IfNotPresent
         name: certgen
-      hostNetwork: true
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+      hostNetwork: false
       restartPolicy: OnFailure
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       serviceAccount: hubble-generate-certs
       serviceAccountName: hubble-generate-certs
   ttlSecondsAfterFinished: 1800
